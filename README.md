@@ -1,67 +1,72 @@
-# E-Lawyer System
+# E-Legal Connect
 
-## Project Info
-A web-based platform for lawyers and clients to manage cases, attend virtual court sessions, and communicate efficiently. Built for the Ethiopian legal system modernization project.
+## Overview
+Web platform for lawyers, clients, court users, and admins to manage cases, schedule and run virtual hearings, exchange documents, chat in real time, and view activity/reporting. Built for the Ethiopian legal system modernization project.
 
-## Technologies Used
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-- Node.js (Express backend)
-- MongoDB (database)
-- Socket.io (real-time video & chat)
+## Stack
+- Frontend: Vite, React, TypeScript, Tailwind CSS, shadcn-ui, Socket.io client
+- Backend: Node.js, Express, Socket.io, MongoDB (Mongoose)
+- Auth: JWT + role-based access control
+- Video/Signaling: WebRTC with Socket.io signaling
 
-## How to Run Locally
+## Quick Start (Local)
 
-### 1. Prerequisites
-- Node.js & npm installed ([Download Node.js](https://nodejs.org/))
-- MongoDB installed and running locally ([Download MongoDB](https://www.mongodb.com/try/download/community))
+Prereqs: Node.js + npm, MongoDB running locally or a remote URI.
 
-### 2. Start MongoDB
-Open a terminal and run:
-```powershell
-mongod
-```
-(Leave this window open)
-
-### 3. Start the Backend
-Open a new terminal:
+1) Backend
 ```powershell
 cd backend
 npm install
-node app.js
+# set .env (see env vars below)
+npm start       # or: node app.js
 ```
-You should see `MongoDB connected` and `Backend server and signaling server running on port 5001`.
+Defaults: PORT 5100, MongoDB at mongodb://localhost:27017/e-lawyer
 
-### 4. Start the Frontend
-Open another terminal:
+2) Frontend (new terminal)
 ```powershell
 cd ..
 npm install
-npm run dev
+npm run dev     # default Vite port 5173 (or next available)
 ```
-You should see the app running at [http://localhost:8083](http://localhost:8083).
 
-## Features
-- User registration and login (JWT-based)
-- Case management (CRUD)
-- Session scheduling and management
-- Virtual video meetings (WebRTC + Socket.io)
-- Real-time chat during meetings
-- Document upload and sharing
-- Role-based access (lawyer, client,Court,Admin)
+Open the app at the dev server URL shown in the terminal (e.g., http://localhost:5173).
 
-## Deployment
-- Build frontend: `npm run build` (deploy `dist/` to Netlify, Vercel, etc.)
-- Deploy backend to Node.js host (Heroku, Render, DigitalOcean, etc.)
-- Set environment variables (`MONGODB_URI`, `JWT_SECRET`, etc.) in your host dashboard
+## Key Features
+- JWT auth with RBAC (lawyer, client, court, admin)
+- Case management with history
+- Session scheduling/join links, WebRTC signaling, optional recordings
+- Secure document upload/download tied to cases and messages
+- Real-time chat, notifications, reminders
+- Reports and activity logging; health check at `/health`
+
+## Deployment (Summary)
+- Frontend: `npm run build`, deploy `dist/` to static host (Netlify/Vercel/etc.). Set `VITE_SIGNALING_URL`/`VITE_SOCKET_URL` if backend is on a different origin.
+- Backend: `npm install`, `npm start` (or PM2). Provide env vars below; ensure HTTPS and WebSocket support; use MongoDB Atlas or managed Mongo.
 
 
+## Backend Environment Variables (.env)
+- `MONGODB_URI` — Mongo connection string
+- `PORT` — HTTP port (default 5100)
+- `JWT_SECRET` — secret for JWT signing
+- `MESSAGE_SECRET` — optional 32+ chars to enable message encryption
+- `APP_ORIGIN` / `FRONTEND_BASE_URL` — used for join links in session routes
+- `ALLOW_ADMIN_SESSION_CONTROL` — `true|false` to let admins control sessions
+- `GEMINI_API_KEY` or `GOOGLE_API_KEY` — AI assistance
+- `SERPAPI_KEY`, `GOOGLE_CSE_KEY`, `GOOGLE_CSE_ID` — web search support for AI
+- Admin seeding (optional): `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`
+
+## Scripts
+- Frontend: `npm run dev`, `npm run build`, `npm run preview`, `npm run lint`
+- Backend: `npm start`, `npm test` (Jest)
+
+## Docs
+- Project docs: docs/README.md
+- API quick list: docs/api.md
+- Deployment checklist: DEPLOYMENT.md
+- Final report: docs/final-documentation.md
 
 ## Support
 If you encounter issues, open an issue in your repository or contact the project maintainers.
+## Support
 
----
-
+If you encounter issues, open an issue in your repository or contact the project maintainers.
