@@ -1,0 +1,21 @@
+{
+  "dashboard": "ዳሽቦርድ",
+  "profile": "መገለጫ",
+  "notifications": "ማሳሰቢያዎች",
+  "cases": "ጉዳዮቼ",
+  "documents": "ሰነዶች",
+  "upload_document": "ሰነድ ስቀል",
+  "view_download": "እይት/አውርድ",
+  "status": "ሁኔታ",
+  "progress": "እድገት",
+  "details": "ዝርዝሮች",
+  "lawyer": "ጠበቃ",
+  "type": "አይነት",
+  "filed": "ቀርቧል",
+  "no_cases": "ምንም ጉዳዮች አልተገኙም።",
+  "no_documents": "ምንም ሰነዶች አልተገኙም።",
+  "no_notifications": "ምንም ማሳሰቢያዎች አልተገኙም።",
+  "language": "ቋንቋ",
+  "english": "እንግሊዝኛ",
+  "amharic": "አማርኛ"
+}

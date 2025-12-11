@@ -1,0 +1,30 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d4af37"/>
+      <stop offset="100%" stop-color="#b0892f"/>
+    </linearGradient>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer>
+        <feFuncA type="table" tableValues="0 0.05"/>
+      </feComponentTransfer>
+      <feBlend mode="multiply" in2="SourceGraphic"/>
+    </filter>
+  </defs>
+  <rect width="1600" height="900" fill="#0f1e32"/>
+  <g opacity="0.7">
+    <!-- Stylized Lady Justice silhouette -->
+    <path d="M800 120 C760 200 760 260 800 320 C730 360 700 440 720 520 C650 560 640 660 700 700 C650 740 680 800 760 800 C840 800 950 820 980 760 C1010 700 960 640 900 620 C940 560 930 500 880 460 C920 420 920 360 880 320 C920 260 920 200 880 120 Z" fill="url(#gold)"/>
+    <!-- Scales left -->
+    <path d="M720 320 L660 360 L720 360 Z" fill="url(#gold)"/>
+    <circle cx="690" cy="360" r="4" fill="url(#gold)"/>
+    <!-- Scales right -->
+    <path d="M880 320 L940 360 L880 360 Z" fill="url(#gold)"/>
+    <circle cx="910" cy="360" r="4" fill="url(#gold)"/>
+    <!-- Sword hint -->
+    <rect x="850" y="460" width="8" height="160" fill="url(#gold)" rx="2"/>
+  </g>
+  <rect width="1600" height="900" fill="#000" opacity="0.0" filter="url(#grain)"/>
+</svg>

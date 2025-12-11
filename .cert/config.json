@@ -1,0 +1,15 @@
+{
+  "record": {
+    "hosts": [
+      "localhost",
+      "192.168.1.9",
+      "127.0.0.1",
+      "0.0.0.0"
+    ],
+    "hash": {
+      "key": "53a216810af1a6b71ef308f9701e2cdffea90efe1ffc354124c6a56a0b184e90",
+      "cert": "98487a6e768327fa8aa28637af94d6352cace2093b50aa58f3892d62baeef339"
+    }
+  },
+  "configFilePath": "D:\\project\\e-legal-connect-main\\e-legal-connect-main\\.cert\\config.json"
+}

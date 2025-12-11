@@ -1,0 +1,148 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221 47% 23%;
+    --primary-foreground: 210 40% 98%;
+    --primary-blue: 221 83% 53%;
+    --primary-purple: 260 85% 75%;
+    --secondary: 215 20.2% 65.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221 47% 23%;
+    --radius: 0.5rem;
+
+  /* Global background set to solid white; can display a subtle brand image */
+  /* Point to your background image placed under /public */
+  --brand-bg-image: url('/brand-bg.jpg');
+  --brand-gold: 46 62% 47%; /* approx #c59d2a */
+  --brand-navy: 215 45% 22%; /* approx #16345b */
+    /* Force light color scheme for form controls/scrollbars */
+    color-scheme: light;
+  }
+
+  .dark {
+    --background: 218 33% 9%;
+    --foreground: 210 40% 98%;
+    --card: 218 28% 12%;
+    --card-foreground: 210 40% 98%;
+    --popover: 218 28% 12%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 221 47% 23%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 215 20% 28%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 218 28% 14%;
+    --muted-foreground: 218 10% 70%;
+    --accent: 218 28% 14%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+    /* Solid white background site-wide */
+    background-color: hsl(var(--background));
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    /* Prevent layout shift when overlays open by reserving scrollbar space */
+    scrollbar-gutter: stable both-edges;
+  }
+
+  /* Subtle global background photo overlay */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0; /* sits behind content */
+    pointer-events: none;
+    user-select: none;
+    /* Neutral glaze over the photo to preserve readability */
+    background-image:
+      linear-gradient(0deg, hsl(var(--foreground) / 0.06), hsl(var(--foreground) / 0.06)),
+      var(--brand-bg-image);
+    background-size: cover, cover;
+    background-position: center, center;
+    background-repeat: no-repeat;
+    background-blend-mode: multiply, normal;
+    filter: contrast(1.02) saturate(1.05);
+    opacity: 0.12; /* low visibility */
+    transform: translateZ(0);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+  }
+
+  /* Responsive type scale for mobile friendliness */
+  h1 { font-size: clamp(1.25rem, 1.2rem + 1.2vw, 2rem); }
+  h2 { font-size: clamp(1.125rem, 1rem + 0.8vw, 1.5rem); }
+  h3 { font-size: clamp(1rem, 0.95rem + 0.6vw, 1.25rem); }
+  p, li, label, input, button { font-size: clamp(0.9rem, 0.85rem + 0.4vw, 1rem); }
+}
+
+/* Calendar specific styles */
+.bg-primary-blue {
+  background-color: #3b82f6;
+}
+
+.bg-primary-purple {
+  background-color: #9b87f5;
+}
+
+/* Mobile/overlay improvements */
+html { height: 100%; overflow-y: scroll; scrollbar-gutter: stable both-edges; }
+body, #root { min-height: 100%; }
+
+/* Improve input touch size */
+input, button { touch-action: manipulation; }
+
+/* Responsive table helper: wrap tables in a div.table-responsive */
+.table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-responsive table { min-width: 640px; }
+
+/* Container padding tweaks for small screens */
+.container { padding-left: max(1rem, env(safe-area-inset-left)); padding-right: max(1rem, env(safe-area-inset-right)); }
+@media (min-width: 640px) {
+  .container { padding-left: max(1.25rem, env(safe-area-inset-left)); padding-right: max(1.25rem, env(safe-area-inset-right)); }
+}
+
+/* Respect reduced motion on mobile */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Hide chips scrollbar on mobile while keeping scroll */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

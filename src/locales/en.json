@@ -1,0 +1,21 @@
+{
+  "dashboard": "Dashboard",
+  "profile": "Profile",
+  "notifications": "Notifications",
+  "cases": "My Cases",
+  "documents": "Documents",
+  "upload_document": "Upload Document",
+  "view_download": "View/Download",
+  "status": "Status",
+  "progress": "Progress",
+  "details": "Details",
+  "lawyer": "Lawyer",
+  "type": "Type",
+  "filed": "Filed",
+  "no_cases": "No cases found.",
+  "no_documents": "No documents found.",
+  "no_notifications": "No notifications.",
+  "language": "Language",
+  "english": "English",
+  "amharic": "Amharic"
+}
