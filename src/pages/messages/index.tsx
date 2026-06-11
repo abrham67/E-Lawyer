@@ -2,29 +2,31 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import { useAuth } from '@/hooks/useAuth';
+import { useQuery } from '@tanstack/react-query';
+import { useApiClient } from '@/hooks/useApiClient';
+import { useTranslation } from 'react-i18next';
 
 type Msg = { senderId: string; recipientId: string; text: string; created_at?: string };
 
 const MessagesIndex: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { t } = useTranslation();
   const [partners, setPartners] = useState<Record<string, any>>({});
+  const { authedFetch } = useApiClient();
 
-  useEffect(() => {
-    if (!user?.id) return; // wait for auth
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    fetch('/api/communication/messages', { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.ok ? res.json() : Promise.reject())
-      .then(data => setMessages(Array.isArray(data.messages) ? data.messages : []))
-      .catch(() => setMessages([]))
-      .finally(() => setLoading(false));
-  }, [user?.id]);
+  const messagesQuery = useQuery<Msg[]>({
+    queryKey: ['messages'],
+    queryFn: async () => {
+      const data = await authedFetch('/api/communication/messages');
+      return Array.isArray((data as any)?.messages) ? (data as any).messages : [];
+    },
+    enabled: !!user?.id,
+  });
+
+  const messages = useMemo(() => messagesQuery.data ?? [], [messagesQuery.data]);
+  const loading = messagesQuery.isLoading || messagesQuery.isFetching;
+  const messagesError = messagesQuery.error as Error | null;
 
   const threads = useMemo(() => {
   if (!user?.id) return [] as Array<{ partnerId: string; lastMsg: Msg }>;
@@ -40,12 +42,11 @@ const MessagesIndex: React.FC = () => {
 
   // Fetch partner profiles for display
   useEffect(() => {
-    const token = localStorage.getItem('token');
     const missing = threads.map(t => t.partnerId).filter(id => !partners[id]);
-    if (missing.length === 0 || !token) return;
+    if (missing.length === 0) return;
     (async () => {
       const results = await Promise.allSettled(
-        missing.map(id => fetch(`/api/users/${id}`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()))
+        missing.map(id => fetch(`/api/profiles/${id}`).then(r => (r.ok ? r.json() : Promise.reject())))
       );
       const next: Record<string, any> = {};
       results.forEach((res, idx) => {
@@ -56,19 +57,21 @@ const MessagesIndex: React.FC = () => {
       });
       if (Object.keys(next).length) setPartners(prev => ({ ...prev, ...next }));
     })();
-  }, [threads]);
+  }, [threads, partners]);
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container mx-auto px-4 py-8">
-        <h1 className="text-xl font-semibold mb-4">Messages</h1>
+        <h1 className="text-xl font-semibold mb-4">{t('messages.title')}</h1>
         {!user?.id ? (
-          <div className="text-sm text-muted-foreground">Loading user…</div>
+          <div className="text-sm text-muted-foreground">{t('messages.loading_user')}</div>
+        ) : messagesError ? (
+          <div className="text-sm text-red-600">{messagesError.message || t('messages.failed_load')}</div>
         ) : loading ? (
-          <div className="text-sm text-muted-foreground">Loading…</div>
+          <div className="text-sm text-muted-foreground">{t('messages.loading')}</div>
         ) : threads.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No conversations yet. Open a user profile or directory card and click Message.</p>
+          <p className="text-sm text-muted-foreground">{t('messages.no_conversations')}</p>
         ) : (
           <div className="space-y-2">
             {threads.map(({ partnerId, lastMsg }) => {

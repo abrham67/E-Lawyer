@@ -28,4 +28,14 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+// Lightweight session probe for frontend fallback (no DB write operations)
+router.get('/session', authenticateToken, (req, res) => {
+  const id = req.user && (req.user.id || req.user._id || req.user.userId || req.user.sub);
+  const role = req.user && req.user.role;
+  if (!id) {
+    return res.json({ user: null });
+  }
+  res.json({ user: { id: String(id), role } });
+});
+
 module.exports = router;

@@ -5,8 +5,10 @@ import Chat from "@/components/Chat";
 import { useAuth } from "@/hooks/useAuth";
 import VideoConference from "@/components/VideoConference";
 import MobileTabBar from "@/components/MobileTabBar";
+import { useTranslation } from 'react-i18next';
 
 const LawyerDashboard = () => {
+  const { t } = useTranslation();
   const [cases, setCases] = useState([]);
   const [rawCases, setRawCases] = useState([]);
   const [sessions, setSessions] = useState([]);
@@ -22,12 +24,8 @@ const LawyerDashboard = () => {
   const [openCaseModal, setOpenCaseModal] = useState(false);
   const [newCase, setNewCase] = useState({ title: "", description: "", clientId: "", courtId: "", case_type: "", practice_area: "" });
   const [caseLoading, setCaseLoading] = useState(false);
+  const [clients, setClients] = useState<any[]>([]);
   const [courts, setCourts] = useState<any[]>([]);
-  // Logout handler
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    window.location.href = "/";
-  };
   const fileInputRef = useRef(null);
   const { user } = useAuth();
   const [recipient, setRecipient] = useState(null); // Placeholder for selected client
@@ -39,20 +37,20 @@ const LawyerDashboard = () => {
     setCaseLoading(true);
     const token = localStorage.getItem("token");
     try {
+      const payload = {
+        title: newCase.title,
+        description: newCase.description,
+        clientId: newCase.clientId,
+        case_type: newCase.case_type,
+        practice_area: newCase.practice_area,
+        ...(newCase.courtId ? { courtId: newCase.courtId } : {}),
+      };
+      const headers: any = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
       const res = await fetch("/api/cases", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          title: newCase.title,
-          description: newCase.description,
-          clientId: newCase.clientId,
-          courtId: newCase.courtId,
-          case_type: newCase.case_type,
-          practice_area: newCase.practice_area,
-        })
+        headers,
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         const created = await res.json();
@@ -60,10 +58,10 @@ const LawyerDashboard = () => {
         setOpenCaseModal(false);
         setNewCase({ title: "", description: "", clientId: "", courtId: "", case_type: "", practice_area: "" });
       } else {
-        setError("Failed to create case.");
+        setError(t('lawyer_dashboard.failed_create_case'));
       }
     } catch {
-      setError("Failed to create case.");
+      setError(t('lawyer_dashboard.failed_create_case'));
     }
     setCaseLoading(false);
   };
@@ -76,19 +74,21 @@ const LawyerDashboard = () => {
     const formData = new FormData();
     formData.append("file", file);
     try {
+      const headers: any = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
       const res = await fetch(`/api/documents/${selectedCaseId}`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
         body: formData
       });
       if (res.ok) {
         const doc = await res.json();
         setDocuments(prev => [...prev, doc]);
       } else {
-        setError("Failed to upload document.");
+        setError(t('lawyer_dashboard.failed_upload_document'));
       }
     } catch {
-      setError("Failed to upload document.");
+      setError(t('lawyer_dashboard.failed_upload_document'));
     }
     // Reset file input value so the same file can be uploaded again if needed
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -101,17 +101,22 @@ const LawyerDashboard = () => {
     fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => res.json())
       .then((data) => setProfile(data.user || null))
-      .catch(() => setError("Failed to load profile."));
+      .catch(() => setError(t('lawyer_dashboard.failed_load_profile')));
     // Fetch cases
     fetch("/api/cases", { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
       .then((res) => res.json())
       .then((data) => setRawCases(data.cases || []))
-      .catch(() => setError("Failed to load cases."));
+      .catch(() => setError(t('lawyer_dashboard.failed_load_cases')));
+    // Fetch clients for case creation
+    fetch('/api/clients', { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => res.json())
+      .then((data) => setClients(Array.isArray(data) ? data : []))
+      .catch(() => setClients([]));
     // Fetch sessions (API returns an array directly); defaults to lawyer's sessions for lawyer role
     fetch("/api/courtsessions", { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => res.json())
       .then((data) => setSessions(Array.isArray(data) ? data : (data.sessions || data || [])))
-      .catch(() => setError("Failed to load court sessions."));
+      .catch(() => setError(t('lawyer_dashboard.failed_load_sessions')));
     // Fetch messages
     fetch("/api/communication", { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => res.json())
@@ -124,12 +129,12 @@ const LawyerDashboard = () => {
     fetch("/api/documents", { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
       .then((res) => res.json())
       .then((data) => setDocuments(data.documents || []));
-    // Fetch courts list for case creation
-    fetch('/api/users?role=court')
+    // Fetch courts list for case creation (may be empty; assignment is optional)
+    fetch('/api/users?role=court', { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
       .then((data) => setCourts(Array.isArray(data) ? data : []))
       .catch(() => {});
-  }, []);
+  }, [t]);
 
   // When profile (lawyer) is available, filter rawCases to only the lawyer's cases and sort them.
   useEffect(() => {
@@ -168,15 +173,7 @@ const LawyerDashboard = () => {
       <Navbar />
       {/* Mobile-only heading to match client format */}
       <div className="md:hidden container mx-auto px-4 pt-4">
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2 text-primary">Lawyer Dashboard</h1>
-      </div>
-      <div className="flex justify-end p-2">
-        <button
-          className="px-4 py-2 bg-red-600 text-white rounded font-semibold shadow"
-          onClick={handleLogout}
-        >
-          Logout
-        </button>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2 text-primary">{t('lawyer_dashboard.title')}</h1>
       </div>
   <main id="main-dashboard-section" className="container mx-auto px-4 py-6 overflow-x-hidden">
         {/* Single-column, one section per row */}
@@ -188,64 +185,64 @@ const LawyerDashboard = () => {
                 <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-blue-700 text-2xl font-bold mr-2">
                   <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5.121 17.804A13.937 13.937 0 0112 15c2.5 0 4.847.655 6.879 1.804M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 </span>
-                <h2 id="profile-heading" className="text-base sm:text-lg md:text-xl font-semibold" tabIndex={0}>Profile</h2>
-                <a href="/docs/lawyer-manual.md" target="_blank" aria-label="Help: Profile" className="ml-2 text-blue-600 text-lg" tabIndex={0} title="Help">?</a>
+                <h2 id="profile-heading" className="text-base sm:text-lg md:text-xl font-semibold" tabIndex={0}>{t('lawyer_dashboard.profile')}</h2>
+                <a href="/docs/lawyer-manual.md" target="_blank" aria-label={t('lawyer_dashboard.help_profile')} className="ml-2 text-blue-600 text-lg" tabIndex={0} title={t('lawyer_dashboard.help')}>?</a>
               </div>
               <button
                 className="px-4 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold shadow"
                 onClick={() => window.location.href = '/lawyer/profile'}
               >
-                Edit Profile
+                {t('lawyer_dashboard.edit_profile')}
               </button>
             </div>
             {profile ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-gray-700">
-                <div><span className="font-semibold">Name:</span> {profile.full_name || profile.fullName}</div>
-                <div><span className="font-semibold">Email:</span> {profile.email}</div>
-                <div><span className="font-semibold">Specialization:</span> {profile.specialization}</div>
-                <div><span className="font-semibold">Bar Number:</span> {profile.bar_number || profile.barNumber}</div>
+                <div><span className="font-semibold">{t('lawyer_dashboard.name')}:</span> {profile.full_name || profile.fullName}</div>
+                <div><span className="font-semibold">{t('lawyer_dashboard.email')}:</span> {profile.email}</div>
+                <div><span className="font-semibold">{t('lawyer_dashboard.specialization')}:</span> {profile.specialization}</div>
+                <div><span className="font-semibold">{t('lawyer_dashboard.bar_number')}:</span> {profile.bar_number || profile.barNumber}</div>
               </div>
             ) : (
-              <div className="flex items-center gap-2 text-gray-400 animate-pulse"><svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M8 12h.01M16 12h.01M12 16h.01" /></svg> Loading profile...</div>
+              <div className="flex items-center gap-2 text-gray-400 animate-pulse"><svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M8 12h.01M16 12h.01M12 16h.01" /></svg> {t('lawyer_dashboard.loading_profile')}</div>
             )}
           </section>
           {/* Messaging */}
           <section className="bg-gradient-to-br from-green-50 to-white rounded-2xl shadow-lg p-4 sm:p-5 mb-4" aria-labelledby="chat-heading">
             <div className="flex items-center mb-4 gap-2">
               <svg className="w-7 h-7 text-green-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 01-4-.8l-4 1 1.1-3.3A7.96 7.96 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-              <h2 id="chat-heading" className="text-base sm:text-lg md:text-xl font-semibold" tabIndex={0}>Real-Time Chat</h2>
-              <a href="/docs/lawyer-manual.md#communicating-with-clients" target="_blank" aria-label="Help: Chat" className="ml-2 text-blue-600 text-lg" tabIndex={0} title="Help">?</a>
+              <h2 id="chat-heading" className="text-base sm:text-lg md:text-xl font-semibold" tabIndex={0}>{t('lawyer_dashboard.real_time_chat')}</h2>
+              <a href="/docs/lawyer-manual.md#communicating-with-clients" target="_blank" aria-label={t('lawyer_dashboard.help_chat')} className="ml-2 text-blue-600 text-lg" tabIndex={0} title={t('lawyer_dashboard.help')}>?</a>
             </div>
             {/* TODO: Add recipient selection UI */}
             {user && user.id ? (
               <Chat user={user} recipient={recipient || { id: "demo-client", full_name: "Demo Client" }} />
             ) : (
-              <div className="text-gray-400">Loading chat...</div>
+              <div className="text-gray-400">{t('lawyer_dashboard.loading_chat')}</div>
             )}
           </section>
           {/* Case List */}
           <section className="bg-gradient-to-br from-purple-50 to-white rounded-2xl shadow-lg p-4 sm:p-5 mb-4" aria-labelledby="cases-heading">
             <div className="flex items-center mb-4 gap-2">
               <svg className="w-7 h-7 text-purple-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M16 3v4M8 3v4" /></svg>
-              <h2 id="cases-heading" className="text-base sm:text-lg md:text-xl font-semibold" tabIndex={0}>My Cases</h2>
-              <a href="/docs/lawyer-manual.md#managing-cases" target="_blank" aria-label="Help: Cases" className="ml-2 text-blue-600 text-lg" tabIndex={0} title="Help">?</a>
+              <h2 id="cases-heading" className="text-base sm:text-lg md:text-xl font-semibold" tabIndex={0}>{t('lawyer_dashboard.my_cases')}</h2>
+              <a href="/docs/lawyer-manual.md#managing-cases" target="_blank" aria-label={t('lawyer_dashboard.help_cases')} className="ml-2 text-blue-600 text-lg" tabIndex={0} title={t('lawyer_dashboard.help')}>?</a>
               <button
                 className="ml-auto px-4 py-1 bg-green-600 hover:bg-green-700 focus:ring-2 focus:ring-green-300 text-white rounded-lg text-sm font-semibold shadow transition-all duration-150"
                 onClick={() => setOpenCaseModal(true)}
                 tabIndex={0}
-                aria-label="Create new case"
+                aria-label={t('lawyer_dashboard.create_new_case')}
               >
-                + Create Case
+                + {t('lawyer_dashboard.create_case')}
               </button>
             </div>
             <div className="overflow-x-hidden">
               <table className="w-full table-fixed text-left rounded-lg">
                 <thead className="bg-purple-100">
                   <tr>
-                    <th className="py-2 px-2 sm:px-3 font-semibold w-[45%] break-words">Title</th>
-                    <th className="py-2 px-2 sm:px-3 font-semibold w-[25%]">Status</th>
-                    <th className="py-2 px-2 sm:px-3 font-semibold hidden md:table-cell">Progress</th>
-                    <th className="py-2 px-2 sm:px-3 font-semibold hidden md:table-cell">Next Session</th>
+                    <th className="py-2 px-2 sm:px-3 font-semibold w-[45%] break-words">{t('lawyer_dashboard.title_col')}</th>
+                    <th className="py-2 px-2 sm:px-3 font-semibold w-[25%]">{t('lawyer_dashboard.status_col')}</th>
+                    <th className="py-2 px-2 sm:px-3 font-semibold hidden md:table-cell">{t('lawyer_dashboard.progress_col')}</th>
+                    <th className="py-2 px-2 sm:px-3 font-semibold hidden md:table-cell">{t('lawyer_dashboard.next_session')}</th>
                     {false && <th className="py-2 px-3 font-semibold">Actions</th>}
                   </tr>
                 </thead>
@@ -254,7 +251,7 @@ const LawyerDashboard = () => {
                     cases.map((c, idx) => {
                       // Canonical backend statuses
                       const statusOptions = ['active', 'closed', 'rejected'] as const;
-                      const statusLabels: Record<string, string> = { active: 'Active', closed: 'Closed', rejected: 'Rejected' };
+                      const statusLabels: Record<string, string> = { active: t('lawyer_dashboard.active'), closed: t('lawyer_dashboard.closed'), rejected: t('lawyer_dashboard.rejected') };
                       const currentStatus = String(c.status || '').toLowerCase();
                       const sIndex = Math.max(0, statusOptions.indexOf(currentStatus as any));
                       const progress = (() => {
@@ -286,7 +283,7 @@ const LawyerDashboard = () => {
                                 if (res.ok) {
                                   setCases(prev => prev.map((cc, i) => i === idx ? { ...cc, status: newStatus } : cc));
                                 } else {
-                                  setError('Failed to update status');
+                                  setError(t('lawyer_dashboard.failed_update_status'));
                                 }
                               }}
                               className="border rounded px-2 py-1 bg-white focus:border-purple-400 hover:bg-purple-50 transition"
@@ -319,7 +316,7 @@ const LawyerDashboard = () => {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={5} className="text-center text-gray-400 py-4">{profile && String(profile.role || '').toLowerCase() === 'lawyer' ? 'No open cases.' : 'No cases found.'}</td>
+                      <td colSpan={5} className="text-center text-gray-400 py-4">{profile && String(profile.role || '').toLowerCase() === 'lawyer' ? t('lawyer_dashboard.no_open_cases') : t('lawyer_dashboard.no_cases_found')}</td>
                     </tr>
                   )}
                 </tbody>
@@ -338,49 +335,53 @@ const LawyerDashboard = () => {
                 >
                   ×
                 </button>
-                <h2 className="text-2xl font-bold mb-4 text-center text-primary">Create New Case</h2>
+                <h2 className="text-2xl font-bold mb-4 text-center text-primary">{t('lawyer_dashboard.create_new_case')}</h2>
                 <form onSubmit={handleCreateCase} className="space-y-4">
                   <div>
-                    <label className="block mb-1 font-medium text-gray-700">Title</label>
+                    <label className="block mb-1 font-medium text-gray-700">{t('lawyer_dashboard.title_label')}</label>
                     <input
                       type="text"
                       className="border-2 border-primary/30 focus:border-primary rounded-lg px-3 py-2 w-full transition-all focus:outline-none"
                       required
                       value={newCase.title}
                       onChange={e => setNewCase({ ...newCase, title: e.target.value })}
-                      placeholder="Enter case title"
+                      placeholder={t('lawyer_dashboard.enter_case_title')}
                     />
                   </div>
                   <div>
-                    <label className="block mb-1 font-medium text-gray-700">Description</label>
+                    <label className="block mb-1 font-medium text-gray-700">{t('lawyer_dashboard.description')}</label>
                     <textarea
                       className="border-2 border-primary/30 focus:border-primary rounded-lg px-3 py-2 w-full transition-all focus:outline-none resize-vertical min-h-[60px]"
                       required
                       value={newCase.description}
                       onChange={e => setNewCase({ ...newCase, description: e.target.value })}
-                      placeholder="Describe the case"
+                      placeholder={t('lawyer_dashboard.describe_case')}
                     />
                   </div>
                   <div>
-                    <label className="block mb-1 font-medium text-gray-700">Client ID</label>
-                    <input
-                      type="text"
+                    <label className="block mb-1 font-medium text-gray-700">{t('lawyer_dashboard.client_id')}</label>
+                    <select
                       className="border-2 border-primary/30 focus:border-primary rounded-lg px-3 py-2 w-full transition-all focus:outline-none"
                       required
                       value={newCase.clientId}
                       onChange={e => setNewCase({ ...newCase, clientId: e.target.value })}
-                      placeholder="Enter client ID"
-                    />
+                    >
+                      <option value="">{t('lawyer_dashboard.select_client') || 'Select client'}</option>
+                      {clients.map((client: any) => (
+                        <option key={client.id || client._id} value={client.id || client._id}>
+                          {client.full_name || client.email}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
-                    <label className="block mb-1 font-medium text-gray-700">Assign Court</label>
+                    <label className="block mb-1 font-medium text-gray-700">{t('lawyer_dashboard.assign_court')} <span className="text-xs text-gray-400">({t('lawyer_dashboard.optional') || 'optional'})</span></label>
                     <select
                       className="border-2 border-primary/30 focus:border-primary rounded-lg px-3 py-2 w-full transition-all focus:outline-none"
-                      required
                       value={newCase.courtId}
                       onChange={e => setNewCase({ ...newCase, courtId: e.target.value })}
                     >
-                      <option value="">Select court</option>
+                      <option value="">{t('lawyer_dashboard.no_court_selected') || 'No court selected'}</option>
                       {courts.map((ct: any) => (
                         <option key={ct.id || ct._id} value={ct.id || ct._id}>
                           {ct.full_name || ct.court_name || ct.email}
@@ -390,23 +391,23 @@ const LawyerDashboard = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block mb-1 font-medium text-gray-700">Case Type</label>
+                      <label className="block mb-1 font-medium text-gray-700">{t('lawyer_dashboard.case_type')}</label>
                       <input
                         type="text"
                         className="border-2 border-primary/30 focus:border-primary rounded-lg px-3 py-2 w-full transition-all focus:outline-none"
                         value={newCase.case_type}
                         onChange={e => setNewCase({ ...newCase, case_type: e.target.value })}
-                        placeholder="e.g., Civil, Criminal"
+                        placeholder={t('lawyer_dashboard.case_type_placeholder')}
                       />
                     </div>
                     <div>
-                      <label className="block mb-1 font-medium text-gray-700">Practice Area</label>
+                      <label className="block mb-1 font-medium text-gray-700">{t('lawyer_dashboard.practice_area')}</label>
                       <input
                         type="text"
                         className="border-2 border-primary/30 focus:border-primary rounded-lg px-3 py-2 w-full transition-all focus:outline-none"
                         value={newCase.practice_area}
                         onChange={e => setNewCase({ ...newCase, practice_area: e.target.value })}
-                        placeholder="e.g., Family, Corporate"
+                        placeholder={t('lawyer_dashboard.practice_area_placeholder')}
                       />
                     </div>
                   </div>
@@ -416,14 +417,14 @@ const LawyerDashboard = () => {
                       className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-semibold transition-all"
                       onClick={() => setOpenCaseModal(false)}
                     >
-                      Cancel
+                      {t('lawyer_dashboard.cancel')}
                     </button>
                     <button
                       type="submit"
                       className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-all"
                       disabled={caseLoading}
                     >
-                      {caseLoading ? 'Creating...' : 'Create Case'}
+                      {caseLoading ? t('lawyer_dashboard.creating') : t('lawyer_dashboard.create_case')}
                     </button>
                   </div>
                 </form>

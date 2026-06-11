@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Navbar from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CasesAPI, apiGet, LawyersBatchAPI } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useTranslation } from 'react-i18next';
 
 const MyLawyer: React.FC = () => {
   const { user } = useAuth();
@@ -11,6 +12,7 @@ const MyLawyer: React.FC = () => {
   const [lawyers, setLawyers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   // Normalize any id-like shape to string or null
   const idToString = (val: any): string | null => {
@@ -29,7 +31,7 @@ const MyLawyer: React.FC = () => {
     try { return String(val); } catch { return null; }
   };
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -56,28 +58,28 @@ const MyLawyer: React.FC = () => {
       }
       setLawyers(profiles || []);
     } catch (err: any) {
-      setError(err.message || 'Failed to load connected lawyers');
+      setError(err.message || t('client_my_lawyer.failed_load'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
   useEffect(() => {
     refresh();
-  }, []);
+  }, [refresh]);
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-4">My Lawyer</h1>
+        <h1 className="text-2xl font-bold mb-4">{t('client_my_lawyer.title')}</h1>
         <Card>
           <CardHeader>
-            <CardTitle>Connected Lawyers</CardTitle>
+            <CardTitle>{t('client_my_lawyer.connected_lawyers')}</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div>Loading...</div>
+              <div>{t('client_my_lawyer.loading')}</div>
             ) : error ? (
               <div className="text-red-600">{error}</div>
             ) : lawyers.length > 0 ? (
@@ -91,7 +93,7 @@ const MyLawyer: React.FC = () => {
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <Button size="sm" onClick={() => window.location.href = `/lawyers/${l._id || l.id}`}>View Profile</Button>
+                          <Button size="sm" onClick={() => window.location.href = `/lawyers/${l._id || l.id}`}>{t('client_my_lawyer.view_profile')}</Button>
                           <Button size="sm" variant="destructive" onClick={async () => {
                             // find the case for this lawyer
                             const token = localStorage.getItem('token');
@@ -102,16 +104,16 @@ const MyLawyer: React.FC = () => {
                                 return cid && lawyerId && cid === lawyerId;
                               });
                               if (myCases.length === 0) {
-                                setError('No connection found to disconnect');
+                                setError(t('client_my_lawyer.no_connection'));
                                 return;
                               }
                               const caseToDelete = myCases[0];
                               await CasesAPI.disconnect((caseToDelete._id || caseToDelete.id) as string, token);
                               await refresh();
                             } catch (err: any) {
-                              setError(err.message || 'Failed to disconnect');
+                              setError(err.message || t('client_my_lawyer.failed_disconnect'));
                             }
-                          }}>Disconnect</Button>
+                          }}>{t('client_my_lawyer.disconnect')}</Button>
                         </div>
                       </div>
                     </div>
@@ -119,7 +121,7 @@ const MyLawyer: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <div className="text-gray-500">You have no connected lawyers.</div>
+              <div className="text-gray-500">{t('client_my_lawyer.no_connected_lawyers')}</div>
             )}
           </CardContent>
         </Card>

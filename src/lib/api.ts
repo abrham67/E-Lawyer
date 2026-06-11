@@ -1,9 +1,29 @@
 // Generic API utility for CRUD operations
+import { getApiErrorMessage, safeParseApiResponse } from './apiError';
+
+async function readResponsePayload(res: Response) {
+  const text = await res.text().catch(() => '');
+  return safeParseApiResponse(text);
+}
+
+function buildApiError(payload: any, status: number) {
+  const message = typeof payload === 'string'
+    ? payload || `HTTP ${status}`
+    : getApiErrorMessage(payload, `HTTP ${status}`);
+  const err: any = new Error(message);
+  err.status = status;
+  err.payload = payload;
+  return err;
+}
+
 export async function apiGet(url: string, token?: string) {
   const res = await fetch(url, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const payload = await readResponsePayload(res);
+    throw buildApiError(payload, res.status);
+  }
   return res.json();
 }
 
@@ -16,7 +36,10 @@ export async function apiPost(url: string, data: any, token?: string) {
     },
     body: JSON.stringify(data)
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const payload = await readResponsePayload(res);
+    throw buildApiError(payload, res.status);
+  }
   return res.json();
 }
 
@@ -29,7 +52,10 @@ export async function apiPut(url: string, data: any, token?: string) {
     },
     body: JSON.stringify(data)
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const payload = await readResponsePayload(res);
+    throw buildApiError(payload, res.status);
+  }
   return res.json();
 }
 
@@ -45,14 +71,13 @@ export async function apiPatch(url: string, data?: any, token?: string) {
     opts.body = JSON.stringify(data);
   }
   const res = await fetch(url, opts);
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const payload = await readResponsePayload(res);
+    throw buildApiError(payload, res.status);
+  }
   // try to parse JSON, otherwise return text
   const text = await res.text();
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
+  return safeParseApiResponse(text);
 }
 
 export async function apiDelete(url: string, token?: string) {
@@ -61,10 +86,14 @@ export async function apiDelete(url: string, token?: string) {
     method: 'DELETE',
     headers: token ? { Authorization: `Bearer ${token}` } : undefined
   });
-  if (res.ok) return res.text();
+  if (res.ok) {
+    const text = await res.text();
+    return text;
+  }
   // If proxy/dev server blocks DELETE (404/405 with "Cannot DELETE"), retry with POST fallback for cases only
-  const body = await res.text().catch(() => '');
-  const blocked = res.status === 404 || res.status === 405 || /Cannot\s+DELETE/i.test(body);
+  const body = await readResponsePayload(res);
+  const bodyText = typeof body === 'string' ? body : getApiErrorMessage(body, '');
+  const blocked = res.status === 404 || res.status === 405 || /Cannot\s+DELETE/i.test(bodyText);
   const isCaseItem = /\/api\/cases\/+[^\/]+$/i.test(url);
   if (blocked && isCaseItem) {
     const retry = await fetch(`${url}/delete`, {
@@ -75,10 +104,10 @@ export async function apiDelete(url: string, token?: string) {
       // backend returns JSON {deleted:true}; normalize to text
       try { const j = await retry.json(); return JSON.stringify(j); } catch { return retry.text(); }
     }
-    const retryText = await retry.text().catch(() => '');
-    throw new Error(retryText || `HTTP ${retry.status}`);
+    const retryPayload = await readResponsePayload(retry);
+    throw buildApiError(retryPayload, retry.status);
   }
-  throw new Error(body || `HTTP ${res.status}`);
+  throw buildApiError(body, res.status);
 }
 
 

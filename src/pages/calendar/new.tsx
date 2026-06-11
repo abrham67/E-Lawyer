@@ -17,14 +17,14 @@ import { Calendar as CalendarDate } from '@/components/ui/calendar';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
-
-const t = (k: string) => k;
+import { useTranslation } from 'react-i18next';
 
 type CaseItem = { id: string; title?: string; lawyerId?: string };
 type Lawyer = { id: string; full_name?: string; email?: string };
 type Client = { id: string; full_name?: string; email?: string };
 
 const NewMeeting: React.FC = () => {
+  const { t } = useTranslation();
   const { user: authUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -92,15 +92,15 @@ const NewMeeting: React.FC = () => {
         const filtered = role === 'lawyer'
           ? allCases.filter((c: any) => idToString(c.lawyer_id || c.lawyerId || c.lawyer) === String(authUser.id))
           : allCases;
-        setCases(filtered.map((c: any) => ({ id: String(c._id || c.id), title: c.title || c.name || 'Case', lawyerId: idToString(c.lawyer_id || c.lawyerId || c.lawyer) })));
+        setCases(filtered.map((c: any) => ({ id: String(c._id || c.id), title: c.title || c.name || t('calendar_new.case'), lawyerId: idToString(c.lawyer_id || c.lawyerId || c.lawyer) })));
       } catch (err: any) {
-        toast({ title: 'Error fetching cases', description: err?.message || String(err), variant: 'destructive' });
+        toast({ title: t('calendar_new.error_fetching_cases'), description: err?.message || String(err), variant: 'destructive' });
       } finally {
         setLoading(false);
       }
     };
     fetchCases();
-  }, [authChecked, authUser, authLoading, toast]);
+  }, [authChecked, authUser, authLoading, toast, t]);
 
   // When case changes, load involved lawyers for the case (assigned + prior sessions) and preselect the assigned
   useEffect(() => {
@@ -116,7 +116,7 @@ const NewMeeting: React.FC = () => {
         const res = await fetch(`/api/cases/${selectedCaseId}/involved-lawyers`, { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
         if (!res.ok) {
           const text = await res.text();
-          toast({ variant: 'destructive', title: 'Failed to load involved lawyers', description: text || `${res.status} ${res.statusText}` });
+          toast({ variant: 'destructive', title: t('calendar_new.failed_load_involved_lawyers'), description: text || `${res.status} ${res.statusText}` });
           // Fallback on non-OK: try the assigned lawyer from the case
           try {
             // Prefer local case list mapping first
@@ -128,7 +128,7 @@ const NewMeeting: React.FC = () => {
             }
             const lid = idToString(assigned);
             if (lid) {
-              setAvailableLawyers([{ id: lid, full_name: 'Assigned Lawyer', email: '' } as any]);
+              setAvailableLawyers([{ id: lid, full_name: t('calendar_new.assigned_lawyer'), email: '' } as any]);
               setInvolvedLawyerIds([lid]);
             }
           } catch {}
@@ -149,7 +149,7 @@ const NewMeeting: React.FC = () => {
               }
               const lid = idToString(assigned);
               if (lid) {
-                setAvailableLawyers([{ id: lid, full_name: 'Assigned Lawyer', email: '' } as any]);
+                setAvailableLawyers([{ id: lid, full_name: t('calendar_new.assigned_lawyer'), email: '' } as any]);
                 setInvolvedLawyerIds([lid]);
               }
             } catch (e) {
@@ -175,7 +175,7 @@ const NewMeeting: React.FC = () => {
             const c = await CasesAPI.get(selectedCaseId, token || undefined);
             const cid = idToString(c?.client_id || c?.clientId || c?.client);
             if (cid) {
-              setAvailableClients([{ id: cid, full_name: 'Assigned Client', email: '' } as any]);
+              setAvailableClients([{ id: cid, full_name: t('calendar_new.assigned_client'), email: '' } as any]);
               setInvolvedClientIds([cid]);
             }
           } catch {}
@@ -183,7 +183,7 @@ const NewMeeting: React.FC = () => {
       } catch {}
     };
     run();
-  }, [selectedCaseId, cases]);
+  }, [selectedCaseId, cases, toast, t]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target as HTMLInputElement;
@@ -195,7 +195,7 @@ const NewMeeting: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date) {
-      toast({ variant: 'destructive', title: 'Date required', description: 'Please select a date for the court session' });
+      toast({ variant: 'destructive', title: t('calendar_new.date_required'), description: t('calendar_new.select_date') });
       return;
     }
     // Optional time validation (non-destructive): if both provided and parsable, end must be after start
@@ -212,25 +212,25 @@ const NewMeeting: React.FC = () => {
       const sm = toMinutes(formData.startTime);
       const em = toMinutes(formData.endTime);
       if (sm !== undefined && em !== undefined && em <= sm) {
-        toast({ variant: 'destructive', title: 'Invalid time range', description: 'End time must be after start time' });
+        toast({ variant: 'destructive', title: t('calendar_new.invalid_time_range'), description: t('calendar_new.end_after_start') });
         return;
       }
     }
     if (sessionType === 'virtual' && authUser) {
       const role = String(authUser.role || '').toLowerCase();
       if (!['court', 'admin'].includes(role)) {
-        toast({ variant: 'destructive', title: 'Not allowed', description: 'Only court staff can create virtual sessions' });
+        toast({ variant: 'destructive', title: t('calendar_new.not_allowed'), description: t('calendar_new.only_court_virtual') });
         return;
       }
     }
     if (!selectedCaseId) {
-      toast({ variant: 'destructive', title: 'Case required', description: 'Please select a case for this session' });
+      toast({ variant: 'destructive', title: t('calendar_new.case_required'), description: t('calendar_new.select_case_for_session') });
       return;
     }
 
     try {
       setIsSubmitting(true);
-      if (!authUser) throw new Error('You must be logged in to create a session');
+      if (!authUser) throw new Error(t('calendar_new.must_login_create'));
       const token = localStorage.getItem('token');
       const payload: any = {
         caseId: selectedCaseId,
@@ -244,19 +244,19 @@ const NewMeeting: React.FC = () => {
         location: formData.location || '',
       };
       const data = await CourtSessionsAPI.create(payload, token);
-      toast({ title: 'Session created', description: `The ${sessionType} court session has been successfully created` });
+      toast({ title: t('calendar_new.session_created'), description: t('calendar_new.session_created_desc', { sessionType }) });
       setTimeout(() => {
         if (sessionType === 'virtual' && data) navigate(`/meeting/${data.id || data._id}`);
         else navigate('/calendar');
       }, 400);
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Error creating session', description: err?.message || String(err) });
+      toast({ variant: 'destructive', title: t('calendar_new.error_creating_session'), description: err?.message || String(err) });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (!authChecked) return <div className="min-h-screen bg-background flex items-center justify-center"><p>Loading...</p></div>;
+  if (!authChecked) return <div className="min-h-screen bg-background flex items-center justify-center"><p>{t('calendar_new.loading')}</p></div>;
   if (showUnauthorizedDialog) {
     return (
       <div className="min-h-screen bg-background">
@@ -264,12 +264,12 @@ const NewMeeting: React.FC = () => {
         <main className="container mx-auto px-4 py-8 flex justify-center items-center">
           <Card className="max-w-md w-full">
             <CardHeader>
-              <CardTitle className="text-2xl text-center">Access Restricted</CardTitle>
-              <CardDescription className="text-center">Only court staff can create court sessions.</CardDescription>
+              <CardTitle className="text-2xl text-center">{t('calendar_new.access_restricted')}</CardTitle>
+              <CardDescription className="text-center">{t('calendar_new.only_court_create')}</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center">
-              <p className="text-center mb-6">Please contact your lawyer or court administrator to schedule a court session.</p>
-              <Button onClick={() => navigate('/calendar')}>View Court Calendar</Button>
+              <p className="text-center mb-6">{t('calendar_new.contact_lawyer_admin')}</p>
+              <Button onClick={() => navigate('/calendar')}>{t('calendar_new.view_court_calendar')}</Button>
             </CardContent>
           </Card>
         </main>
@@ -283,43 +283,43 @@ const NewMeeting: React.FC = () => {
       <main className="container mx-auto px-4 py-8">
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Create Court Session</CardTitle>
-            <CardDescription>Fill out the form below to create a new court session.</CardDescription>
+            <CardTitle className="text-2xl">{t('calendar_new.create_court_session')}</CardTitle>
+            <CardDescription>{t('calendar_new.fill_form')}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="grid gap-6">
               <div>
-                <Label htmlFor="caseSelect">{t('Select Case')}</Label>
+                <Label htmlFor="caseSelect">{t('calendar_new.select_case')}</Label>
                 <Select onValueChange={(value) => setSelectedCaseId(value)} value={selectedCaseId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a case" />
+                    <SelectValue placeholder={t('calendar_new.select_case_placeholder')} />
                   </SelectTrigger>
                   <SelectContent>
                     {loading ? (
-                      <SelectItem value="loading" disabled>Loading cases...</SelectItem>
+                      <SelectItem value="loading" disabled>{t('calendar_new.loading_cases')}</SelectItem>
                     ) : cases.length > 0 ? (
                       cases.map((caseItem) => (
                         <SelectItem key={caseItem.id} value={caseItem.id}>{caseItem.title}</SelectItem>
                       ))
                     ) : (
-                      <SelectItem value="no-cases" disabled>No cases available</SelectItem>
+                      <SelectItem value="no-cases" disabled>{t('calendar_new.no_cases_available')}</SelectItem>
                     )}
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
-                <Label className="mb-2 block">{t('Meeting Type')}</Label>
+                <Label className="mb-2 block">{t('calendar_new.meeting_type')}</Label>
                 <RadioGroup value={sessionType} onValueChange={(v) => setSessionType(v as any)} className="flex flex-col space-y-1">
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="physical" id="physical" />
-                    <Label htmlFor="physical">{t('Physical (In-person)')}</Label>
+                    <Label htmlFor="physical">{t('calendar_new.physical')}</Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="virtual" id="virtual" />
-                    <Label htmlFor="virtual">{t('Virtual Meeting')}</Label>
+                    <Label htmlFor="virtual">{t('calendar_new.virtual_meeting')}</Label>
                     {authUser && String(authUser.role || '').toLowerCase() !== 'court' && (
-                      <span className="text-xs text-muted-foreground">(Court staff only)</span>
+                      <span className="text-xs text-muted-foreground">({t('calendar_new.court_staff_only')})</span>
                     )}
                   </div>
                 </RadioGroup>
@@ -328,19 +328,19 @@ const NewMeeting: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {sessionType === 'physical' && (
                   <div>
-                    <Label htmlFor="location">{t('Location')}</Label>
-                    <Input id="location" placeholder={t('Enter location')} value={formData.location} onChange={(e) => setFormData(prev => ({...prev, location: e.target.value}))} />
+                    <Label htmlFor="location">{t('calendar_new.location')}</Label>
+                    <Input id="location" placeholder={t('calendar_new.enter_location')} value={formData.location} onChange={(e) => setFormData(prev => ({...prev, location: e.target.value}))} />
                   </div>
                 )}
                 {!isCourt && (
                   <div>
-                    <Label htmlFor="type">{t('Session Type')}</Label>
+                    <Label htmlFor="type">{t('calendar_new.session_type')}</Label>
                     <Select onValueChange={(v) => setFormData(prev => ({...prev, type: v}))} value={formData.type}>
-                      <SelectTrigger><SelectValue placeholder={t('Select type')} /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={t('calendar_new.select_type')} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="hearing">{t('Hearing')}</SelectItem>
-                        <SelectItem value="trial">{t('Trial')}</SelectItem>
-                        <SelectItem value="mediation">{t('Mediation')}</SelectItem>
+                        <SelectItem value="hearing">{t('calendar_new.hearing')}</SelectItem>
+                        <SelectItem value="trial">{t('calendar_new.trial')}</SelectItem>
+                        <SelectItem value="mediation">{t('calendar_new.mediation')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -348,14 +348,14 @@ const NewMeeting: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="description">{t('Description')}</Label>
-                <Textarea id="description" placeholder={t('Enter description')} className="resize-none" value={formData.description} onChange={(e) => setFormData(prev => ({...prev, description: e.target.value}))} />
+                <Label htmlFor="description">{t('calendar_new.description')}</Label>
+                <Textarea id="description" placeholder={t('calendar_new.enter_description')} className="resize-none" value={formData.description} onChange={(e) => setFormData(prev => ({...prev, description: e.target.value}))} />
               </div>
 
               <div>
-                <Label className="mb-2 block">{t('Involved Lawyers')}</Label>
+                <Label className="mb-2 block">{t('calendar_new.involved_lawyers')}</Label>
                 <div className="border rounded-md p-3 max-h-56 overflow-y-auto">
-                  {availableLawyers.length === 0 && <div className="text-sm text-muted-foreground">No lawyers available</div>}
+                  {availableLawyers.length === 0 && <div className="text-sm text-muted-foreground">{t('calendar_new.no_lawyers_available')}</div>}
                   {availableLawyers.map((l) => {
                     const id = String(l.id);
                     const checked = involvedLawyerIds.includes(id);
@@ -376,14 +376,14 @@ const NewMeeting: React.FC = () => {
                     );
                   })}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Selected lawyers will be notified of this session.</p>
+                <p className="text-xs text-muted-foreground mt-1">{t('calendar_new.selected_lawyers_notified')}</p>
               </div>
 
               <div>
-                <Label className="mb-2 block">{t('Involved Clients')}</Label>
+                <Label className="mb-2 block">{t('calendar_new.involved_clients')}</Label>
                 <div className="border rounded-md p-3 max-h-56 overflow-y-auto">
                   {availableClients.length === 0 && (
-                    <div className="text-sm text-muted-foreground">No clients available</div>
+                    <div className="text-sm text-muted-foreground">{t('calendar_new.no_clients_available')}</div>
                   )}
                   {availableClients.map((c) => {
                     const id = String(c.id);
@@ -407,16 +407,16 @@ const NewMeeting: React.FC = () => {
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {sessionType === 'virtual'
-                    ? 'Selected clients will be invited to the virtual session.'
-                    : 'Selected clients will be notified about this physical session.'}
+                    ? t('calendar_new.selected_clients_invited_virtual')
+                    : t('calendar_new.selected_clients_notified_physical')}
                 </p>
               </div>
 
               <div>
-                <Label className="mb-2 block">{t('Date')}</Label>
+                <Label className="mb-2 block">{t('calendar_new.date')}</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn('w-full justify-start text-left')}>{date ? format(date, 'PPP') : 'Pick a date'}</Button>
+                    <Button variant="outline" className={cn('w-full justify-start text-left')}>{date ? format(date, 'PPP') : t('calendar_new.pick_date')}</Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
                     <CalendarDate mode="single" selected={date} onSelect={(d: Date) => setDate(d)} />
@@ -424,20 +424,20 @@ const NewMeeting: React.FC = () => {
                 </Popover>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                   <div>
-                    <Label htmlFor="startTime">{t('Start Time')}</Label>
-                    <Input id="startTime" type="text" inputMode="numeric" placeholder="e.g., 0900 or 09:00" value={formData.startTime} onChange={(e) => setFormData(prev => ({...prev, startTime: e.target.value}))} />
+                    <Label htmlFor="startTime">{t('calendar_new.start_time')}</Label>
+                    <Input id="startTime" type="text" inputMode="numeric" placeholder={t('calendar_new.start_time_placeholder')} value={formData.startTime} onChange={(e) => setFormData(prev => ({...prev, startTime: e.target.value}))} />
                   </div>
                   <div>
-                    <Label htmlFor="endTime">{t('End Time')}</Label>
-                    <Input id="endTime" type="text" inputMode="numeric" placeholder="e.g., 1030 or 10:30" value={formData.endTime} onChange={(e) => setFormData(prev => ({...prev, endTime: e.target.value}))} />
+                    <Label htmlFor="endTime">{t('calendar_new.end_time')}</Label>
+                    <Input id="endTime" type="text" inputMode="numeric" placeholder={t('calendar_new.end_time_placeholder')} value={formData.endTime} onChange={(e) => setFormData(prev => ({...prev, endTime: e.target.value}))} />
                   </div>
                 </div>
               </div>
 
 
               <div className="flex items-center justify-end space-x-2">
-                <Button type="button" variant="ghost" onClick={() => navigate('/calendar')}>Cancel</Button>
-                <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Creating...' : 'Create Session'}</Button>
+                <Button type="button" variant="ghost" onClick={() => navigate('/calendar')}>{t('calendar_new.cancel')}</Button>
+                <Button type="submit" disabled={isSubmitting}>{isSubmitting ? t('calendar_new.creating') : t('calendar_new.create_session')}</Button>
               </div>
             </form>
           </CardContent>

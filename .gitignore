@@ -23,5 +23,20 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environment variables
+.env
+.env.local
+.env.*.local
+backend/.env
+backend/.env.local
+
 # Uploads and generated assets
 backend/uploads/
+
+# SSL certificates
+.cert/*.pem
+.cert/*.key
+
+# Test files and credentials
+login.json
+reg.json

@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Navbar from "@/components/Navbar";
 import { useToast } from "@/hooks/use-toast";
 import { CasesAPI } from "@/lib/api";
+import { useTranslation } from "react-i18next";
 // Supabase removed. Profile type can be defined locally or imported from new backend types if available.
 
 interface CaseHistoryItem {
@@ -32,6 +33,7 @@ const LawyerProfile = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [lawyer, setLawyer] = useState<any>(null);
   const [caseHistory, setCaseHistory] = useState<CaseHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,18 +57,19 @@ const LawyerProfile = () => {
       }
       try {
         // Fetch lawyer profile from backend API
-  const res = await fetch(`/api/lawyers/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+        const token = localStorage.getItem('token');
+      const res = await fetch(`/api/lawyers/${id}`, { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
         if (!res.ok) {
           if (res.status === 404) {
             navigate('/lawyers');
             toast({
               variant: "destructive",
-              title: "Lawyer not found",
-              description: "The lawyer profile you're looking for doesn't exist",
+              title: t('lawyer_profile.not_found_title'),
+              description: t('lawyer_profile.not_found_desc'),
             });
             return;
           }
-          throw new Error('Failed to fetch lawyer profile');
+          throw new Error(t('lawyer_profile.failed_fetch'));
         }
         const lawyerData = await res.json();
         setLawyer(lawyerData);
@@ -96,8 +99,8 @@ const LawyerProfile = () => {
         console.error('Error fetching lawyer profile:', error);
         toast({
           variant: "destructive",
-          title: "Error",
-          description: "Failed to load lawyer profile",
+          title: t('lawyer_profile.error'),
+          description: t('lawyer_profile.failed_load'),
         });
         setLawyer(null);
         setCaseHistory([]);
@@ -106,7 +109,7 @@ const LawyerProfile = () => {
       }
     };
     fetchLawyerProfile();
-  }, [id, navigate, toast]);
+  }, [id, navigate, toast, t]);
 
   const getInitials = (name: string) => {
     return name
@@ -125,16 +128,17 @@ const LawyerProfile = () => {
   const submitMessage = async () => {
     setSubmitting(true);
     try {
-      await fetch(`/api/communication/messages`, {
+        const tokenMsg = localStorage.getItem('token');
+        await fetch(`/api/communication/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+        headers: { "Content-Type": "application/json", ...(tokenMsg ? { Authorization: `Bearer ${tokenMsg}` } : {}) },
         body: JSON.stringify({ recipientId: lawyer._id || lawyer.id, message: messageText })
       });
-      toast({ title: "Message sent", description: `Your message has been sent to ${lawyer?.full_name}` });
+      toast({ title: t('lawyer_profile.message_sent'), description: t('lawyer_profile.message_sent_desc', { name: lawyer?.full_name }) });
       setShowMessageDialog(false);
       setMessageText("");
     } catch {
-      toast({ title: "Failed to send message", variant: "destructive" });
+      toast({ title: t('lawyer_profile.failed_send_message'), variant: "destructive" });
     }
     setSubmitting(false);
   };
@@ -143,16 +147,16 @@ const LawyerProfile = () => {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('token') || undefined;
-      const title = 'New Case';
+      const title = t('lawyer_profile.new_case');
       const description = (connectNote && connectNote.trim().length >= 10)
         ? connectNote.trim()
-        : 'Pending lawyer approval';
+        : t('lawyer_profile.pending_approval');
       await fetch(`/api/cases/connect`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ lawyer_id: lawyer._id || lawyer.id, title, description })
       });
-      toast({ title: "Connection request sent", description: `You have requested to connect with ${lawyer?.full_name}` });
+      toast({ title: t('lawyer_profile.connection_sent'), description: t('lawyer_profile.connection_sent_desc', { name: lawyer?.full_name }) });
       setShowConnectDialog(false);
       setConnectNote("");
       setConnectionStatus("pending");
@@ -174,7 +178,7 @@ const LawyerProfile = () => {
         setCaseHistory(mapped);
       } catch {}
     } catch {
-      toast({ title: "Failed to send connection request", variant: "destructive" });
+      toast({ title: t('lawyer_profile.failed_connection_request'), variant: "destructive" });
     }
     setSubmitting(false);
   };
@@ -182,17 +186,18 @@ const LawyerProfile = () => {
   const submitReview = async () => {
     setSubmitting(true);
     try {
+      const tokenRev = localStorage.getItem('token');
       await fetch(`/api/lawyers/${lawyer._id || lawyer.id}/reviews`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+        headers: { "Content-Type": "application/json", ...(tokenRev ? { Authorization: `Bearer ${tokenRev}` } : {}) },
         body: JSON.stringify({ rating: reviewRating, comment: reviewText })
       });
-      toast({ title: "Review submitted", description: `Thank you for reviewing ${lawyer?.full_name}` });
+      toast({ title: t('lawyer_profile.review_submitted'), description: t('lawyer_profile.review_submitted_desc', { name: lawyer?.full_name }) });
       setShowReviewDialog(false);
       setReviewText("");
       setReviewRating(5);
     } catch {
-      toast({ title: "Failed to submit review", variant: "destructive" });
+      toast({ title: t('lawyer_profile.failed_review'), variant: "destructive" });
     }
     setSubmitting(false);
   };
@@ -204,7 +209,7 @@ const LawyerProfile = () => {
       try {
         const token = localStorage.getItem("token");
         if (!token || !id) return;
-  const res = await fetch(`/api/cases/connection-status?lawyer_id=${id}`, {
+        const res = await fetch(`/api/cases/connection-status?lawyer_id=${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {
@@ -245,14 +250,14 @@ const LawyerProfile = () => {
         <Navbar />
         <main className="container mx-auto px-4 py-8">
           <div className="text-center py-16">
-            <h1 className="text-2xl font-bold">Lawyer not found</h1>
-            <p className="mt-2 text-muted-foreground">The lawyer profile you're looking for doesn't exist</p>
+            <h1 className="text-2xl font-bold">{t('lawyer_profile.not_found_title')}</h1>
+            <p className="mt-2 text-muted-foreground">{t('lawyer_profile.not_found_desc')}</p>
             <Button 
               variant="outline" 
               className="mt-4"
               onClick={() => navigate('/lawyers')}
             >
-              Back to Lawyers Directory
+              {t('lawyer_profile.back_to_directory')}
             </Button>
           </div>
         </main>
@@ -275,9 +280,9 @@ const LawyerProfile = () => {
                     <AvatarFallback className="text-lg">{lawyer.full_name ? getInitials(lawyer.full_name) : 'LA'}</AvatarFallback>
                   </Avatar>
                   <CardTitle className="mt-4 text-2xl">{lawyer.full_name}</CardTitle>
-                  <CardDescription className="mt-1">{lawyer.specialization || 'Legal Professional'}</CardDescription>
+                  <CardDescription className="mt-1">{lawyer.specialization || t('lawyer_profile.legal_professional')}</CardDescription>
                   {lawyer.bar_number && (
-                    <Badge className="mt-2">Bar No: {lawyer.bar_number}</Badge>
+                    <Badge className="mt-2">{t('lawyer_profile.bar_no')}: {lawyer.bar_number}</Badge>
                   )}
                 </div>
               </CardHeader>
@@ -286,7 +291,7 @@ const LawyerProfile = () => {
                   {lawyer.years_of_experience && (
                     <div className="flex items-center gap-2">
                       <Briefcase className="h-4 w-4 text-muted-foreground" />
-                      <span>{lawyer.years_of_experience} years experience</span>
+                      <span>{t('lawyer_profile.years_experience', { count: lawyer.years_of_experience })}</span>
                     </div>
                   )}
                   
@@ -313,7 +318,7 @@ const LawyerProfile = () => {
                   
                   {lawyer.hourly_rate && (
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold">Hourly Rate:</span>
+                      <span className="font-semibold">{t('lawyer_profile.hourly_rate')}:</span>
                       <span>${lawyer.hourly_rate} USD</span>
                     </div>
                   )}
@@ -321,26 +326,26 @@ const LawyerProfile = () => {
                 
                 <div className="mt-6 space-y-3">
                   <Button className="w-full" onClick={handleContactLawyer}>
-                    Message Lawyer
+                    {t('lawyer_profile.message_lawyer')}
                   </Button>
                   <Button
   className="w-full bg-blue-600 hover:bg-blue-700"
   onClick={handleConnectLawyer}
   disabled={checkingStatus || connectionStatus === 'pending' || connectionStatus === 'connected'}
 >
-  {checkingStatus ? 'Checking...' :
-    connectionStatus === 'pending' ? 'Request Pending' :
-    connectionStatus === 'connected' ? 'Connected' :
-    'Connect with Lawyer'}
+  {checkingStatus ? t('lawyer_profile.checking') :
+    connectionStatus === 'pending' ? t('lawyer_profile.request_pending') :
+    connectionStatus === 'connected' ? t('lawyer_profile.connected') :
+    t('lawyer_profile.connect')}
 </Button>
 {connectionStatus === 'pending' && (
-  <div className="text-xs text-yellow-600 text-center">Your connection request is pending approval.</div>
+  <div className="text-xs text-yellow-600 text-center">{t('lawyer_profile.pending_approval_msg')}</div>
 )}
 {connectionStatus === 'connected' && (
-  <div className="text-xs text-green-600 text-center">You are already connected with this lawyer.</div>
+  <div className="text-xs text-green-600 text-center">{t('lawyer_profile.already_connected')}</div>
 )}
 {connectionStatus === 'rejected' && (
-  <div className="text-xs text-red-600 text-center">Your previous request was rejected. You may try again later.</div>
+  <div className="text-xs text-red-600 text-center">{t('lawyer_profile.rejected_request')}</div>
 )}
                   {/* Scheduling disabled: only court/admin can create sessions */}
                 </div>
@@ -350,7 +355,7 @@ const LawyerProfile = () => {
             
             <Card className="mt-6">
               <CardHeader>
-                <CardTitle className="text-lg">Education</CardTitle>
+                <CardTitle className="text-lg">{t('lawyer_profile.education')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -362,7 +367,7 @@ const LawyerProfile = () => {
                       </div>
                     ))
                   ) : (
-                    <span className="text-muted-foreground">No education details provided</span>
+                    <span className="text-muted-foreground">{t('lawyer_profile.no_education')}</span>
                   )}
                 </div>
               </CardContent>
@@ -373,33 +378,33 @@ const LawyerProfile = () => {
           <div className="lg:col-span-2">
             <Tabs defaultValue="overview">
               <TabsList className="w-full">
-                <TabsTrigger value="overview" className="flex-1">Overview</TabsTrigger>
-                <TabsTrigger value="cases" className="flex-1">Case History</TabsTrigger>
-                <TabsTrigger value="reviews" className="flex-1">Reviews</TabsTrigger>
+                <TabsTrigger value="overview" className="flex-1">{t('lawyer_profile.overview')}</TabsTrigger>
+                <TabsTrigger value="cases" className="flex-1">{t('lawyer_profile.case_history')}</TabsTrigger>
+                <TabsTrigger value="reviews" className="flex-1">{t('lawyer_profile.reviews')}</TabsTrigger>
               </TabsList>
               
               <TabsContent value="overview" className="mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>About the Lawyer</CardTitle>
+                    <CardTitle>{t('lawyer_profile.about')}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
                       <div>
-                        <h3 className="font-semibold text-lg mb-2">Specialization</h3>
+                        <h3 className="font-semibold text-lg mb-2">{t('lawyer_profile.specialization')}</h3>
                         <p>
-                          {lawyer.specialization || "This lawyer has not specified their specialization."}
+                          {lawyer.specialization || t('lawyer_profile.no_specialization')}
                         </p>
                       </div>
                       
                       <Separator />
                       
                       <div>
-                        <h3 className="font-semibold text-lg mb-2">Experience</h3>
+                        <h3 className="font-semibold text-lg mb-2">{t('lawyer_profile.experience')}</h3>
                         <p>
                           {lawyer.years_of_experience 
-                            ? `${lawyer.full_name} has ${lawyer.years_of_experience} years of experience in the legal field.`
-                            : "Experience details not provided."
+                            ? t('lawyer_profile.experience_desc', { name: lawyer.full_name, count: lawyer.years_of_experience })
+                            : t('lawyer_profile.no_experience')
                           }
                         </p>
                       </div>
@@ -407,7 +412,7 @@ const LawyerProfile = () => {
                       <Separator />
                       
                       <div>
-                        <h3 className="font-semibold text-lg mb-2">Practice Areas</h3>
+                        <h3 className="font-semibold text-lg mb-2">{t('lawyer_profile.practice_areas')}</h3>
                         <div className="flex flex-wrap gap-2">
                           {/* This would typically come from a separate table or field */}
                           {lawyer.specialization && (
@@ -415,8 +420,8 @@ const LawyerProfile = () => {
                               {lawyer.specialization}
                             </Badge>
                           )}
-                          <Badge variant="secondary">Legal Consultation</Badge>
-                          <Badge variant="secondary">Court Representation</Badge>
+                          <Badge variant="secondary">{t('lawyer_profile.legal_consultation')}</Badge>
+                          <Badge variant="secondary">{t('lawyer_profile.court_representation')}</Badge>
                         </div>
                       </div>
                     </div>
@@ -427,9 +432,9 @@ const LawyerProfile = () => {
               <TabsContent value="cases" className="mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Case History</CardTitle>
+                    <CardTitle>{t('lawyer_profile.case_history')}</CardTitle>
                     <CardDescription>
-                      Previous cases handled by {lawyer.full_name}
+                      {t('lawyer_profile.previous_cases', { name: lawyer.full_name })}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -445,7 +450,7 @@ const LawyerProfile = () => {
                               <div>
                                 <h4 className="font-medium">{caseItem.title}</h4>
                                 <p className="text-sm text-muted-foreground mt-1">
-                                  {caseItem.practice_area || 'General Practice'}
+                                  {caseItem.practice_area || t('lawyer_profile.general_practice')}
                                 </p>
                               </div>
                               <Badge variant={
@@ -462,9 +467,9 @@ const LawyerProfile = () => {
                     ) : (
                       <div className="text-center py-8">
                         <Calendar className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-                        <h3 className="mt-4 text-lg font-medium">No case history</h3>
+                        <h3 className="mt-4 text-lg font-medium">{t('lawyer_profile.no_case_history')}</h3>
                         <p className="text-sm text-muted-foreground mt-1">
-                          This lawyer has no recorded case history in the system
+                          {t('lawyer_profile.no_case_history_desc')}
                         </p>
                       </div>
                     )}
@@ -475,20 +480,20 @@ const LawyerProfile = () => {
               <TabsContent value="reviews" className="mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Client Reviews</CardTitle>
+                    <CardTitle>{t('lawyer_profile.client_reviews')}</CardTitle>
                     <CardDescription>
-                      What clients say about {lawyer.full_name}
+                      {t('lawyer_profile.what_clients_say', { name: lawyer.full_name })}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="text-center py-8">
                       <Star className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-                      <h3 className="mt-4 text-lg font-medium">No reviews yet</h3>
+                      <h3 className="mt-4 text-lg font-medium">{t('lawyer_profile.no_reviews')}</h3>
                       <p className="text-sm text-muted-foreground mt-1">
-                        This lawyer hasn't received any reviews yet
+                        {t('lawyer_profile.no_reviews_desc')}
                       </p>
                       <Button variant="outline" className="mt-4" onClick={() => setShowReviewDialog(true)}>
-                        Leave a Review
+                        {t('lawyer_profile.leave_review')}
                       </Button>
                     </div>
                   </CardContent>
@@ -502,18 +507,18 @@ const LawyerProfile = () => {
       <Dialog open={showMessageDialog} onOpenChange={setShowMessageDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Message {lawyer?.full_name}</DialogTitle>
+            <DialogTitle>{t('lawyer_profile.message_title', { name: lawyer?.full_name })}</DialogTitle>
           </DialogHeader>
           <Textarea
             value={messageText}
             onChange={e => setMessageText(e.target.value)}
-            placeholder="Type your message here..."
+            placeholder={t('lawyer_profile.message_placeholder')}
             rows={5}
             className="mb-4"
           />
           <DialogFooter>
             <Button onClick={submitMessage} disabled={submitting || !messageText.trim()}>
-              Send Message
+              {t('lawyer_profile.send_message')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -522,21 +527,21 @@ const LawyerProfile = () => {
       <Dialog open={showConnectDialog} onOpenChange={setShowConnectDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Connect with {lawyer?.full_name}</DialogTitle>
+            <DialogTitle>{t('lawyer_profile.connect_title', { name: lawyer?.full_name })}</DialogTitle>
           </DialogHeader>
           <div className="mb-2 text-sm text-muted-foreground">
-            Are you sure you want to connect with this lawyer? This will send a request for them to review and accept.
+            {t('lawyer_profile.connect_confirm')}
           </div>
           <Textarea
             value={connectNote}
             onChange={e => setConnectNote(e.target.value)}
-            placeholder="Add a note or details for the lawyer (optional)"
+            placeholder={t('lawyer_profile.connect_note_placeholder')}
             rows={4}
             className="mb-4"
           />
           <DialogFooter>
             <Button onClick={submitConnect} disabled={submitting}>
-              {submitting ? 'Sending...' : 'Send Connection Request'}
+              {submitting ? t('lawyer_profile.sending') : t('lawyer_profile.send_connection_request')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -545,10 +550,10 @@ const LawyerProfile = () => {
       <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Leave a Review for {lawyer?.full_name}</DialogTitle>
+            <DialogTitle>{t('lawyer_profile.review_title', { name: lawyer?.full_name })}</DialogTitle>
           </DialogHeader>
           <div className="mb-2">
-            <label className="font-semibold mr-2">Rating:</label>
+            <label className="font-semibold mr-2">{t('lawyer_profile.rating')}:</label>
             <select value={reviewRating} onChange={e => setReviewRating(Number(e.target.value))} className="border rounded px-2 py-1">
               {[5,4,3,2,1].map(r => <option key={r} value={r}>{r}</option>)}
             </select> / 5
@@ -556,13 +561,13 @@ const LawyerProfile = () => {
           <Textarea
             value={reviewText}
             onChange={e => setReviewText(e.target.value)}
-            placeholder="Write your review here..."
+            placeholder={t('lawyer_profile.review_placeholder')}
             rows={4}
             className="mb-4"
           />
           <DialogFooter>
             <Button onClick={submitReview} disabled={submitting || !reviewText.trim()}>
-              Submit Review
+              {t('lawyer_profile.submit_review')}
             </Button>
           </DialogFooter>
         </DialogContent>

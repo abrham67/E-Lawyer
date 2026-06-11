@@ -19,6 +19,7 @@ export const useVideoSetup = ({ session, isHost }: UseVideoSetupProps) => {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   
   useEffect(() => {
+    const localEl = localVideoRef.current;
     const setupLocalVideo = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -55,8 +56,8 @@ export const useVideoSetup = ({ session, isHost }: UseVideoSetupProps) => {
     setupLocalVideo();
     
     return () => {
-      if (localVideoRef.current && localVideoRef.current.srcObject) {
-        const stream = localVideoRef.current.srcObject as MediaStream;
+      if (localEl && localEl.srcObject) {
+        const stream = localEl.srcObject as MediaStream;
         stream.getTracks().forEach(track => track.stop());
       }
     };

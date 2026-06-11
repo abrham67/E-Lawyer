@@ -2,6 +2,8 @@
 const http = require('http');
 const socketIo = require('socket.io');
 const jwt = require('jsonwebtoken');
+const { getJwtSecret, verifyJwtToken } = require('./utils/jwtSecret');
+const SECRET = getJwtSecret();
 // Import models to validate session status before allowing joins
 let CourtSession;
 let User;
@@ -35,8 +37,7 @@ function startSignalingServer(server) {
     try {
       const authToken = (socket.handshake.auth && socket.handshake.auth.token) || (socket.handshake.query && socket.handshake.query.token);
       if (authToken) {
-        const SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
-        const decoded = jwt.verify(authToken.replace(/^Bearer\s+/i, ''), SECRET);
+        const decoded = verifyJwtToken(authToken.replace(/^Bearer\s+/i, ''));
         const norm = { ...decoded };
         norm.id = norm.id || norm._id || norm.userId || norm.sub || norm.uid || null;
         norm.role = (norm.role && String(norm.role).toLowerCase()) || null;

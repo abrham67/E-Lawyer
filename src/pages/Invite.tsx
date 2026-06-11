@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useTranslation } from 'react-i18next';
 
 type InviteStatus = {
   active: boolean;
@@ -17,6 +18,7 @@ const Invite = () => {
   const { token } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<InviteStatus | null>(null);
@@ -40,7 +42,7 @@ const Invite = () => {
       try {
         const res = await fetch(`/api/courtsessions/invite/${token}`);
         if (!res.ok) {
-          const msg = res.status === 404 ? 'Invalid invite link' : res.status === 410 ? 'This session has ended' : 'Failed to validate invite';
+          const msg = res.status === 404 ? t('invite.invalid_link') : res.status === 410 ? t('invite.ended') : t('invite.validate_failed');
           setError(msg);
           return;
         }
@@ -51,13 +53,13 @@ const Invite = () => {
           setTimeout(() => navigate(payload.join_path), 500);
         }
       } catch (e) {
-        setError('Network error while validating invite');
+        setError(t('invite.network_error'));
       } finally {
         setLoading(false);
       }
     };
     if (token) run();
-  }, [token, navigate]);
+  }, [token, navigate, t]);
 
   const secondsRemaining = useMemo(() => {
     if (!activeFromMs) return null;
@@ -80,7 +82,7 @@ const Invite = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container mx-auto px-4 py-8">
-        <div>Checking your invite…</div>
+        <div>{t('invite.checking')}</div>
       </main>
     </div>
   );
@@ -89,9 +91,9 @@ const Invite = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-semibold mb-2">Invite problem</h1>
+        <h1 className="text-2xl font-semibold mb-2">{t('invite.problem')}</h1>
         <p className="text-muted-foreground mb-6">{error}</p>
-        <Button onClick={() => navigate('/')}>Go home</Button>
+        <Button onClick={() => navigate('/')}>{t('invite.go_home')}</Button>
       </main>
     </div>
   );
@@ -104,19 +106,19 @@ const Invite = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-semibold mb-2">Court session invite</h1>
+        <h1 className="text-2xl font-semibold mb-2">{t('invite.title')}</h1>
         {data.active ? (
           <div className="space-y-4">
-            <p className="text-muted-foreground">Your session is ready. You'll be redirected shortly.</p>
+            <p className="text-muted-foreground">{t('invite.ready')}</p>
             <div>
-              <Button onClick={() => navigate(data.join_path)}>Join now</Button>
+              <Button onClick={() => navigate(data.join_path)}>{t('invite.join_now')}</Button>
             </div>
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-muted-foreground">This invite will become active at {startsAt || 'the scheduled time'}.</p>
+            <p className="text-muted-foreground">{t('invite.active_at')} {startsAt || t('invite.scheduled_time')}.</p>
             {typeof secondsRemaining === 'number' && (
-              <div className="text-lg">Starts in: <span className="font-semibold">{formatCountdown(secondsRemaining)}</span></div>
+              <div className="text-lg">{t('invite.starts_in')}: <span className="font-semibold">{formatCountdown(secondsRemaining)}</span></div>
             )}
           </div>
         )}

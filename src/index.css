@@ -32,7 +32,7 @@
 
   /* Global background set to solid white; can display a subtle brand image */
   /* Point to your background image placed under /public */
-  --brand-bg-image: url('/brand-bg.jpg');
+  --brand-bg-image: none;
   --brand-gold: 46 62% 47%; /* approx #c59d2a */
   --brand-navy: 215 45% 22%; /* approx #16345b */
     /* Force light color scheme for form controls/scrollbars */

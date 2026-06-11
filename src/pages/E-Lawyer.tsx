@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage } from "@/lib/apiError";
 import Navbar from "@/components/Navbar";
 
 const Auth = () => {
@@ -120,7 +121,7 @@ const Auth = () => {
         }
         if (!response.ok) {
           // Show backend error message if available
-          const errorMsg = data?.error || data?.message || 'Invalid login credentials';
+          const errorMsg = getApiErrorMessage(data, 'Invalid login credentials');
           toast({
             title: "Login Failed",
             description: errorMsg,
@@ -169,7 +170,7 @@ const Auth = () => {
           let errMsg = "Registration failed";
           try {
             const errData = await response.json();
-            errMsg = errData?.error || errData?.message || errMsg;
+            errMsg = getApiErrorMessage(errData, errMsg);
           } catch {}
           toast({
             title: "Registration Failed",

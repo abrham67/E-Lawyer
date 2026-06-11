@@ -52,11 +52,12 @@ const User = require('../models/User');
 router.get('/', async (req, res) => {
   try {
     const { role } = req.query;
-    if (role === 'client') {
-      // Return all users with role 'client'
-      const clients = await User.find({ role: 'client' }).select('-password').lean();
+    if (role) {
+      // Return all users with the requested role (case-insensitive)
+      const safeRole = String(role).replace(/[^a-zA-Z]/g, '');
+      const usersByRole = await User.find({ role: { $regex: new RegExp(`^${safeRole}$`, 'i') } }).select('-password').lean();
       // normalize id field for frontend select
-      const normalized = clients.map(({ _id, password, ...rest }) => ({ id: _id.toString(), ...rest }));
+      const normalized = usersByRole.map(({ _id, password, ...rest }) => ({ id: _id.toString(), ...rest }));
       return res.json(normalized);
     }
     // Default: return all profiles

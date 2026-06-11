@@ -26,10 +26,10 @@ Defaults: PORT 5100, MongoDB at mongodb://localhost:27017/e-lawyer
 ```powershell
 cd ..
 npm install
-npm run dev     # default Vite port 5173 (or next available)
+npm run dev     # default Vite port 5180
 ```
 
-Open the app at the dev server URL shown in the terminal (e.g., http://localhost:5173).
+Open the app at the dev server URL shown in the terminal (e.g., http://localhost:5180).
 
 ## Key Features
 - JWT auth with RBAC (lawyer, client, court, admin)
@@ -68,5 +68,3 @@ Open the app at the dev server URL shown in the terminal (e.g., http://localhost
 ## Support
 If you encounter issues, open an issue in your repository or contact the project maintainers.
 ## Support
-
-If you encounter issues, open an issue in your repository or contact the project maintainers.

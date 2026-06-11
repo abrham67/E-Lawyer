@@ -7,10 +7,14 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 
+function isAdminUser(req) {
+  return String(req?.user?.role || '').toLowerCase() === 'admin';
+}
+
 // Base GET /api/documents - return the authenticated user's uploads for now
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const docs = await Document.find({ uploaderId: req.user.id }).limit(50);
+    const docs = await Document.find(isAdminUser(req) ? {} : { uploaderId: req.user.id }).limit(50);
     res.json(docs.map(mapDocToClient));
   } catch (err) {
     res.json([]);
@@ -90,7 +94,7 @@ router.get('/:caseId', authenticateToken, authorizeRoles('lawyer', 'client', 'co
     const isLawyer = lawyerId && lawyerId === uid;
     const isClient = clientId && clientId === uid;
     const isCourt = courtId && courtId === uid;
-    if (!isLawyer && !isClient && !isCourt) {
+    if (!isLawyer && !isClient && !isCourt && !isAdminUser(req)) {
       return res.status(403).json({ error: 'Forbidden: not assigned to this case' });
     }
     const docs = await Document.find({ caseId });
@@ -118,7 +122,7 @@ router.get('/download/:id', authenticateToken, async (req, res) => {
         allowed = Boolean((lawyerId && lawyerId === uid) || (clientId && clientId === uid) || (courtId && courtId === uid));
       } catch {}
     }
-    if (!allowed) return res.status(403).json({ error: 'Forbidden' });
+    if (!allowed && !isAdminUser(req)) return res.status(403).json({ error: 'Forbidden' });
     // Resolve absolute path from stored relative filepath (uploads/...)
     const abs = path.join(__dirname, '..', doc.filepath);
     res.download(abs, doc.filename);

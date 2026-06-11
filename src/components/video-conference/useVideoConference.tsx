@@ -49,6 +49,7 @@ export const useVideoConference = ({ roomId, isHost, isSpectator = false }: UseV
 
   // Acquire/reacquire local media when toggled
   useEffect(() => {
+    const localEl = localVideoRef.current;
     const setupLocalVideo = async () => {
       try {
         if (isSpectator) {
@@ -232,12 +233,12 @@ export const useVideoConference = ({ roomId, isHost, isSpectator = false }: UseV
   setupLocalVideo();
     
     return () => {
-      if (localVideoRef.current && localVideoRef.current.srcObject) {
-        const stream = localVideoRef.current.srcObject as MediaStream;
+      if (localEl && localEl.srcObject) {
+        const stream = localEl.srcObject as MediaStream;
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [videoEnabled, audioEnabled, isHost, isSpectator, toast]);
+  }, [videoEnabled, audioEnabled, isHost, isSpectator, toast, roomId]);
 
   // Socket and WebRTC signaling lifecycle (join room once per roomId)
   useEffect(() => {
@@ -471,7 +472,7 @@ export const useVideoConference = ({ roomId, isHost, isSpectator = false }: UseV
       remoteStreams.current = {} as any;
       setRemoteVideoRefs({});
     };
-  }, [roomId, isSpectator]);
+  }, [roomId, isSpectator, navigate, screenShareEnabled, toast]);
   
   // Ensure a camera video track exists; if not, request it and attach
   const ensureVideoTrack = async () => {

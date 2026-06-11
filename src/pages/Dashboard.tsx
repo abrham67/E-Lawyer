@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import LiveParticipantsPanel from "@/components/LiveParticipantsPanel";
 import MobileTabBar from "@/components/MobileTabBar";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 const Dashboard = () => {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -15,6 +16,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const token = localStorage.getItem("token") || undefined;
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     async function fetchData() {
@@ -50,9 +52,9 @@ const Dashboard = () => {
       }
     }
     if (user) fetchData();
-  }, [user]);
+  }, [user, token]);
 
-  if (authLoading || loading) return <div className="p-8">Loading...</div>;
+  if (authLoading || loading) return <div className="p-8">{t('legacy_dashboard.loading')}</div>;
 
   // Redirect to role dashboard if not on it
   if (user?.role && window.location.pathname === "/") {
@@ -88,8 +90,8 @@ const Dashboard = () => {
       <div id="main-dashboard-section" className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">
-          Welcome,{" "}
-          {user?.full_name || user?.username || "User"}{" "}
+          {t('legacy_dashboard.welcome')}{" "}
+          {user?.full_name || user?.username || t('legacy_dashboard.user')}{" "}
           <span className="text-base font-normal text-gray-500">
             ({user?.role})
           </span>
@@ -98,7 +100,7 @@ const Dashboard = () => {
           onClick={signOut}
           className="bg-red-500 text-white px-4 py-2 rounded"
         >
-          Logout
+          {t('legacy_dashboard.logout')}
         </button>
       </div>
       {error && <div className="text-red-500 mb-2">{error}</div>}
@@ -107,19 +109,19 @@ const Dashboard = () => {
         {user?.role === "lawyer" && (
           <>
             <DashboardCard
-              title="My Cases"
+              title={t('legacy_dashboard.my_cases')}
               onClick={() => navigate("/cases")}
             />
             <DashboardCard
-              title="Court Sessions"
+              title={t('legacy_dashboard.court_sessions')}
               onClick={() => navigate("/calendar")}
             />
             <DashboardCard
-              title="Documents"
+              title={t('legacy_dashboard.documents')}
               onClick={() => navigate("/documents")}
             />
             <DashboardCard
-              title="Profile"
+              title={t('legacy_dashboard.profile')}
               onClick={() => navigate("/profile")}
             />
           </>
@@ -127,19 +129,19 @@ const Dashboard = () => {
         {user?.role === "client" && (
           <>
             <DashboardCard
-              title="Search Lawyers"
+              title={t('legacy_dashboard.search_lawyers')}
               onClick={() => navigate("/lawyers")}
             />
             <DashboardCard
-              title="My Cases"
+              title={t('legacy_dashboard.my_cases')}
               onClick={() => navigate("/cases")}
             />
             <DashboardCard
-              title="Documents"
+              title={t('legacy_dashboard.documents')}
               onClick={() => navigate("/documents")}
             />
             <DashboardCard
-              title="Profile"
+              title={t('legacy_dashboard.profile')}
               onClick={() => navigate("/profile")}
             />
           </>
@@ -147,19 +149,19 @@ const Dashboard = () => {
         {user?.role === "judge" && (
           <>
             <DashboardCard
-              title="Court Sessions"
+              title={t('legacy_dashboard.court_sessions')}
               onClick={() => navigate("/calendar")}
             />
             <DashboardCard
-              title="Case Files"
+              title={t('legacy_dashboard.case_files')}
               onClick={() => navigate("/cases")}
             />
             <DashboardCard
-              title="Rulings"
+              title={t('legacy_dashboard.rulings')}
               onClick={() => navigate("/reports")}
             />
             <DashboardCard
-              title="Profile"
+              title={t('legacy_dashboard.profile')}
               onClick={() => navigate("/profile")}
             />
           </>
@@ -167,19 +169,19 @@ const Dashboard = () => {
         {user?.role === "admin" && (
           <>
             <DashboardCard
-              title="User Management"
+              title={t('legacy_dashboard.user_management')}
               onClick={() => navigate("/admin")}
             />
             <DashboardCard
-              title="Court Schedules"
+              title={t('legacy_dashboard.court_schedules')}
               onClick={() => navigate("/calendar")}
             />
             <DashboardCard
-              title="Reports"
+              title={t('legacy_dashboard.reports')}
               onClick={() => navigate("/reports")}
             />
             <DashboardCard
-              title="System Settings"
+              title={t('legacy_dashboard.system_settings')}
               onClick={() => navigate("/profile")}
             />
           </>
@@ -188,7 +190,7 @@ const Dashboard = () => {
         {user?.role === "court" && (
           <>
             <DashboardCard
-              title="Admin"
+              title={t('legacy_dashboard.admin')}
               onClick={() => navigate("/admin")}
             />
           </>
@@ -196,19 +198,19 @@ const Dashboard = () => {
         {user?.role === "court" && (
           <>
             <DashboardCard
-              title="Sessions"
+              title={t('legacy_dashboard.sessions')}
               onClick={() => navigate("/court")}
             />
             <DashboardCard
-              title="Case Management"
+              title={t('legacy_dashboard.case_management')}
               onClick={() => navigate("/cases")}
             />
             <DashboardCard
-              title="Reports"
+              title={t('legacy_dashboard.reports')}
               onClick={() => navigate("/reports")}
             />
             <DashboardCard
-              title="Profile"
+              title={t('legacy_dashboard.profile')}
               onClick={() => navigate("/profile")}
             />
           </>
@@ -216,27 +218,27 @@ const Dashboard = () => {
       </div>
       {/* Optionally, show a summary or quick stats here */}
       <div className="mb-6">
-        <h2 className="text-lg font-semibold">Profile</h2>
+        <h2 className="text-lg font-semibold">{t('legacy_dashboard.profile_heading')}</h2>
         {profile ? (
           <div className="border p-4 rounded bg-gray-50">
             <div>
-              <strong>Name:</strong> {profile.details || profile.full_name || profile.name}
+              <strong>{t('legacy_dashboard.name')}:</strong> {profile.details || profile.full_name || profile.name}
             </div>
             <div>
-              <strong>Bar Number:</strong> {profile.barNumber || profile.bar_number || "N/A"}
+              <strong>{t('legacy_dashboard.bar_number')}:</strong> {profile.barNumber || profile.bar_number || t('legacy_dashboard.na')}
             </div>
             <div>
-              <strong>Specialization:</strong> {profile.specialization || "N/A"}
+              <strong>{t('legacy_dashboard.specialization')}:</strong> {profile.specialization || t('legacy_dashboard.na')}
             </div>
             <div>
-              <strong>Rating:</strong> {profile.rating || "N/A"}
+              <strong>{t('legacy_dashboard.rating')}:</strong> {profile.rating || t('legacy_dashboard.na')}
             </div>
             <div>
-              <strong>Reviews:</strong> {profile.reviews ? profile.reviews.length : "N/A"}
+              <strong>{t('legacy_dashboard.reviews')}:</strong> {profile.reviews ? profile.reviews.length : t('legacy_dashboard.na')}
             </div>
           </div>
         ) : (
-          <div>No profile found.</div>
+          <div>{t('legacy_dashboard.no_profile_found')}</div>
         )}
       </div>
       {activeSessionId && (
@@ -245,17 +247,17 @@ const Dashboard = () => {
         </div>
       )}
       <div className="pb-20 md:pb-0">{/* leave space for mobile tab bar */}
-        <h2 className="text-lg font-semibold">Cases</h2>
+        <h2 className="text-lg font-semibold">{t('legacy_dashboard.cases_heading')}</h2>
         <ul>
           {cases.map((c) => (
             <li key={c.id || c._id} className="mb-2 border-b pb-2">
               <strong>{c.title}</strong> - {c.description}
-              <div>Case Number: {c.caseNumber || "N/A"}</div>
-              <div>Status: {c.status || "N/A"}</div>
+              <div>{t('legacy_dashboard.case_number')}: {c.caseNumber || t('legacy_dashboard.na')}</div>
+              <div>{t('legacy_dashboard.status')}: {c.status || t('legacy_dashboard.na')}</div>
             </li>
           ))}
         </ul>
-        {cases.length === 0 && <div>No cases found.</div>}
+        {cases.length === 0 && <div>{t('legacy_dashboard.no_cases_found')}</div>}
       </div>
     </div>
     {/* Fixed mobile tab bar */}
@@ -277,7 +279,7 @@ function DashboardCard({
       onClick={onClick}
     >
       <h3 className="text-xl font-semibold mb-2">{title}</h3>
-      <div className="text-gray-500">Go to {title}</div>
+      <div className="text-gray-500">{title}</div>
     </div>
   );
 }

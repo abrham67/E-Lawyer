@@ -5,10 +5,13 @@ import { Button } from '@/components/ui/button';
 import AskAIBot from '@/components/AskAIBot';
 import { useUnreadMessages } from '@/hooks/useUnreadMessages';
 import NotificationsBell from '@/components/NotificationsBell';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { useTranslation } from 'react-i18next';
 
 function Navbar() {
   const navigate = useNavigate();
   const { user, loading, signOut } = useAuth();
+  const { t } = useTranslation();
   const role = String(user?.role || '').toLowerCase();
   const unread = useUnreadMessages(15000);
 
@@ -17,50 +20,51 @@ function Navbar() {
     if (!user) return items;
     switch (role) {
       case 'admin':
-        items.push({ key: 'dashboard', label: 'Dashboard', path: '/admin' });
+        items.push({ key: 'dashboard', label: t('nav.dashboard'), path: '/admin' });
         items.push(
-          { key: 'cases', label: 'All Cases', path: '/cases' },
-          { key: 'calendar', label: 'Court Sessions', path: '/calendar' },
-          { key: 'clients', label: 'Clients', path: '/clients' },
-          { key: 'documents', label: 'Documents', path: '/documents' },
+          { key: 'cases', label: t('nav.all_cases'), path: '/cases' },
+          { key: 'calendar', label: t('nav.court_sessions'), path: '/calendar' },
+          { key: 'clients', label: t('nav.clients'), path: '/clients' },
+          { key: 'documents', label: t('nav.documents'), path: '/documents' },
         );
         break;
       case 'lawyer':
-        items.push({ key: 'dashboard', label: 'Dashboard', path: '/lawyer' });
+        items.push({ key: 'dashboard', label: t('nav.dashboard'), path: '/lawyer' });
         items.push(
-          { key: 'cases', label: 'Client Case', path: '/cases' },
-          { key: 'create-case', label: 'Create Court Case', path: '/cases/new' },
-          { key: 'my-court-cases', label: 'My Court Cases', path: '/cases?view=my-court-cases' },
-          { key: 'calendar', label: 'All Court Sessions', path: '/calendar' },
-          { key: 'clients', label: 'Clients', path: '/clients' },
-          { key: 'messages', label: 'Messages', path: '/messages' },
+          { key: 'cases', label: t('nav.client_case'), path: '/cases' },
+          { key: 'create-case', label: t('nav.create_court_case'), path: '/cases/new' },
+          { key: 'my-court-cases', label: t('nav.my_court_cases'), path: '/cases?view=my-court-cases' },
+          { key: 'calendar', label: t('nav.all_court_sessions'), path: '/calendar' },
+          { key: 'clients', label: t('nav.clients'), path: '/clients' },
+          { key: 'messages', label: t('nav.messages'), path: '/messages' },
         );
         break;
       case 'client':
-        items.push({ key: 'dashboard', label: 'Dashboard', path: '/client' });
+        items.push({ key: 'dashboard', label: t('nav.dashboard'), path: '/client' });
         items.push(
-          { key: 'my-cases', label: 'My Cases', path: '/cases' },
-          { key: 'my-lawyer', label: 'My Lawyer', path: '/my-lawyer' },
-          { key: 'messages', label: 'Messages', path: '/messages' },
-          { key: 'documents', label: 'Documents', path: '/documents' },
+          { key: 'my-cases', label: t('nav.my_cases'), path: '/cases' },
+          { key: 'my-lawyer', label: t('nav.my_lawyer'), path: '/my-lawyer' },
+          { key: 'find-lawyers', label: t('nav.find_lawyers'), path: '/lawyers' },
+          { key: 'messages', label: t('nav.messages'), path: '/messages' },
+          { key: 'documents', label: t('nav.documents'), path: '/documents' },
         );
         break;
       case 'court':
-        items.push({ key: 'dashboard', label: 'Dashboard', path: '/court' });
+        items.push({ key: 'dashboard', label: t('nav.dashboard'), path: '/court' });
         items.push(
-          { key: 'cases', label: 'Manage Cases', path: '/cases' },
-          { key: 'create-session', label: 'Create Court Session', path: '/calendar/new' },
-          { key: 'calendar', label: 'All Court Sessions', path: '/calendar' },
+          { key: 'cases', label: t('nav.manage_cases'), path: '/cases' },
+          { key: 'create-session', label: t('nav.create_court_session'), path: '/calendar/new' },
+          { key: 'calendar', label: t('nav.all_court_sessions'), path: '/calendar' },
         );
         break;
       default:
-        items.push({ key: 'dashboard', label: 'Dashboard', path: '/' });
-        items.push({ key: 'cases', label: 'Cases', path: '/cases' });
-        items.push({ key: 'documents', label: 'Documents', path: '/documents' });
+        items.push({ key: 'dashboard', label: t('nav.dashboard'), path: '/' });
+        items.push({ key: 'cases', label: t('nav.cases'), path: '/cases' });
+        items.push({ key: 'documents', label: t('nav.documents'), path: '/documents' });
         break;
     }
     return items;
-  }, [role, user]);
+  }, [role, user, t]);
 
   const gotoDashboard = () => {
     if (!user || !user.role) return navigate('/');
@@ -95,6 +99,7 @@ function Navbar() {
         </button>
 
         <div className="flex items-center gap-2">
+          <LanguageSwitcher />
           <NotificationsBell />
           <Button
             aria-label="Open profile"
@@ -102,7 +107,7 @@ function Navbar() {
             className="bg-[#2a4872] hover:bg-[#385885] text-white"
             onClick={() => navigate('/profile')}
           >
-            Profile
+            {t('profile')}
           </Button>
           {user && (
             <Button
@@ -111,7 +116,7 @@ function Navbar() {
               className="text-white hover:bg-white/10"
               onClick={doLogout}
             >
-              Logout
+              {t('nav.logout')}
             </Button>
           )}
         </div>

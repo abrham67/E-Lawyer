@@ -22,7 +22,13 @@ This manual covers installation, configuration, maintenance, and troubleshooting
 - **Account suspension**: Use `PATCH /api/admin/users/:id/suspension` with `{ "suspend": true, "reason": "..." }` to ban abusive users; suspended accounts cannot log in.
 - **Complaint handling**: View all submitted complaints at `/api/complaints` and update their status/resolution notes; non-admins only see their own submissions.
 - **Data hygiene**: Leverage the existing `/api/admin/purge` endpoint for catastrophic resets in lower environments. Never run in production without a full backup.
-- **Confidentiality guardrails**: Client–attorney case files and documents are not available to admins. Only assigned lawyers, clients, and courts can read case details or download evidence. Request sanitized exports from responsible parties if audit evidence is needed.
+
+## Admin Superuser Access
+- Admin users are configured as **superusers** for operational management in this deployment.
+- Admin can access role-restricted features and APIs across lawyer, client, and court workflows.
+- Admin can view and manage cases, documents, notifications, and communication records for support, audit, and moderation.
+- Use this access strictly for legitimate administrative operations and incident response.
+- Apply least-privilege process controls (strong passwords, MFA where available, and audited admin account usage).
 
 ## Complaint Workflow
 1. Any authenticated user can submit a complaint through `POST /api/complaints` with a subject, description, and optional target user.

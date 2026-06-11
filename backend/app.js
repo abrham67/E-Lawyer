@@ -3,11 +3,28 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
 const http = require('http');
 const { startSignalingServer } = require('./signaling');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
+const isDevelopment = process.env.NODE_ENV !== 'production';
+// Basic global rate limiter to reduce abuse
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: isDevelopment ? 500 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const aiLimiter = rateLimit({ windowMs: 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false });
 // Import/Export route for data integration
 const importExportRoutes = require('./routes/importExport');
 app.use('/api/import-export', importExportRoutes);
@@ -19,13 +36,27 @@ const calendarRoutes = require('./routes/calendar');
 
 // Register routes
 app.use('/api/cases/report', casesReportRoutes);
+app.use('/api/reports', casesReportRoutes);
 app.use('/api/recordings', recordingsRoutes);
 app.use('/api/calendar', calendarRoutes);
 
-// Start reminders cron job for automated notifications
-require('./jobs/reminders');
-app.use(cors());
+// Start reminders cron job for automated notifications (disabled in tests/CI via env flags)
+if (!process.env.JEST_WORKER_ID && process.env.NODE_ENV !== 'test' && process.env.DISABLE_JOBS !== '1') {
+  require('./jobs/reminders');
+}
+
+// Configure CORS to allow credentials (cookies)
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || (isDevelopment ? 'http://localhost:5180' : ''),
+  credentials: true, // Allow cookies to be sent
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser()); // Parse cookies
+app.use(globalLimiter);
 
 // Serve uploaded files (attachments, credentials) from backend/uploads
 // Note: upload routes write to backend/uploads/**/*, so serve that exact directory
@@ -86,7 +117,7 @@ app.use('/api/activity', activityRoutes);
 
 // Auth/session routes
 const authRoutes = require('./routes/auth-extended');
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 
 // Session management routes
 const sessionRoutes = require('./routes/sessions');
@@ -110,7 +141,7 @@ app.use('/api/complaints', complaintsRoutes);
 
 // AI route (Gemini)
 const aiRoutes = require('./routes/ai');
-app.use('/api/ai', aiRoutes);
+app.use('/api/ai', aiLimiter, aiRoutes);
 
 // Profiles route
 const profilesRoutes = require('./routes/profiles');
@@ -130,9 +161,29 @@ const io = startSignalingServer(server);
 app.locals.io = io;
 
 const PORT = process.env.PORT || 5100;
-server.listen(PORT, () => {
-  console.log(`Backend server and signaling server running on port ${PORT}`);
-});
+
+let hasStarted = false;
+function startServer(port = PORT) {
+  if (hasStarted) return server;
+  hasStarted = true;
+  server.once('error', (err) => {
+    if (err && err.code === 'EADDRINUSE') {
+      console.error(`Port ${port} is already in use. Stop the existing backend process or set PORT to a free port.`);
+      process.exit(1);
+      return;
+    }
+    console.error('Server startup error:', err);
+    process.exit(1);
+  });
+  server.listen(port, () => {
+    console.log(`Backend server and signaling server running on port ${port}`);
+  });
+  return server;
+}
+
+if (require.main === module) {
+  startServer(PORT);
+}
 
 // Export server and io for tests and integration
-module.exports = { app, server, io };
+module.exports = { app, server, io, startServer };

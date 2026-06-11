@@ -37,7 +37,8 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     // Get user role from primary field with fallback to metadata
     const userRole = String(user?.role || user?.user_metadata?.role || '').toLowerCase() as any;
     const normalizedAllowed = allowedRoles.map(r => String(r).toLowerCase()) as any;
-    if (!normalizedAllowed.includes(userRole)) {
+    const isAdminSuperUser = userRole === 'admin';
+    if (!normalizedAllowed.includes(userRole) && !isAdminSuperUser) {
       navigate('/'); // Or show a forbidden page
       return null;
     }

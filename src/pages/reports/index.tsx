@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 import { useToast } from '@/hooks/use-toast';
 import { useCaseReporting } from '@/hooks/useCaseReporting';
@@ -30,6 +31,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 const ReportsIndex = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [profile, setProfile] = useState<Profile | null>(null);
   
   // Fetch user profile using backend API 
@@ -45,9 +47,9 @@ const ReportsIndex = () => {
   
   // Prepare chart data
   const caseStatusData = [
-    { name: 'Active', value: metrics.activeCases },
-    { name: 'Pending', value: metrics.pendingCases },
-    { name: 'Closed', value: metrics.closedCases }
+    { name: t('reports.active'), value: metrics.activeCases },
+    { name: t('reports.pending'), value: metrics.pendingCases },
+    { name: t('reports.closed'), value: metrics.closedCases }
   ];
   
   const caseTypeData = Object.entries(metrics.casesByType).map(([type, count]) => ({
@@ -68,24 +70,24 @@ const ReportsIndex = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-primary mb-2">Case Reports & Analytics</h1>
-            <p className="text-gray-500">View insights and statistics for all your cases</p>
+            <h1 className="text-2xl font-bold text-primary mb-2">{t('reports.title')}</h1>
+            <p className="text-gray-500">{t('reports.subtitle')}</p>
           </div>
           <div className="flex items-center gap-2 mt-4 md:mt-0">
             <Button variant="outline" onClick={() => generateCaseReport()}>
               <FileCheck className="mr-2 h-4 w-4" />
-              Refresh Data
+              {t('reports.refresh_data')}
             </Button>
             <Button onClick={() => exportReport('pdf')}>
               <Download className="mr-2 h-4 w-4" />
-              Export PDF
+              {t('reports.export_pdf')}
             </Button>
           </div>
         </div>
         
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
-            <p className="text-gray-500">Loading report data...</p>
+            <p className="text-gray-500">{t('reports.loading_report_data')}</p>
           </div>
         ) : error ? (
           <Card className="mb-8">
@@ -97,7 +99,7 @@ const ReportsIndex = () => {
                   onClick={() => generateCaseReport()}
                   className="mt-4"
                 >
-                  Try Again
+                  {t('reports.try_again')}
                 </Button>
               </div>
             </CardContent>
@@ -107,7 +109,7 @@ const ReportsIndex = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-500">Total Cases</CardTitle>
+                  <CardTitle className="text-sm font-medium text-gray-500">{t('reports.total_cases')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{metrics.totalCases}</div>
@@ -116,7 +118,7 @@ const ReportsIndex = () => {
               
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-500">Active Cases</CardTitle>
+                  <CardTitle className="text-sm font-medium text-gray-500">{t('reports.active_cases')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-green-600">{metrics.activeCases}</div>
@@ -125,7 +127,7 @@ const ReportsIndex = () => {
               
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-500">Upcoming Sessions</CardTitle>
+                  <CardTitle className="text-sm font-medium text-gray-500">{t('reports.upcoming_sessions')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-blue-600">{metrics.upcomingSessions}</div>
@@ -134,27 +136,27 @@ const ReportsIndex = () => {
               
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-500">Avg. Case Duration</CardTitle>
+                  <CardTitle className="text-sm font-medium text-gray-500">{t('reports.avg_case_duration')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{metrics.avgCaseDuration.toFixed(1)} days</div>
+                  <div className="text-2xl font-bold">{metrics.avgCaseDuration.toFixed(1)} {t('reports.days')}</div>
                 </CardContent>
               </Card>
             </div>
             
             <Tabs defaultValue="overview" className="mb-8">
               <TabsList>
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="cases">Cases</TabsTrigger>
-                <TabsTrigger value="sessions">Sessions</TabsTrigger>
+                <TabsTrigger value="overview">{t('reports.overview')}</TabsTrigger>
+                <TabsTrigger value="cases">{t('reports.cases')}</TabsTrigger>
+                <TabsTrigger value="sessions">{t('reports.sessions')}</TabsTrigger>
               </TabsList>
               
               <TabsContent value="overview" className="mt-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <Card className="h-[400px]">
                     <CardHeader>
-                      <CardTitle>Case Status Distribution</CardTitle>
-                      <CardDescription>Breakdown of cases by current status</CardDescription>
+                      <CardTitle>{t('reports.case_status_distribution')}</CardTitle>
+                      <CardDescription>{t('reports.case_status_distribution_desc')}</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={300}>
@@ -182,8 +184,8 @@ const ReportsIndex = () => {
                   
                   <Card className="h-[400px]">
                     <CardHeader>
-                      <CardTitle>Cases Over Time</CardTitle>
-                      <CardDescription>Monthly case creation trend</CardDescription>
+                      <CardTitle>{t('reports.cases_over_time')}</CardTitle>
+                      <CardDescription>{t('reports.cases_over_time_desc')}</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={300}>
@@ -209,8 +211,8 @@ const ReportsIndex = () => {
                   
                   <Card className="lg:col-span-2 h-[400px]">
                     <CardHeader>
-                      <CardTitle>Cases by Type</CardTitle>
-                      <CardDescription>Distribution of cases across different legal areas</CardDescription>
+                      <CardTitle>{t('reports.cases_by_type')}</CardTitle>
+                      <CardDescription>{t('reports.cases_by_type_desc')}</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={300}>
@@ -239,11 +241,11 @@ const ReportsIndex = () => {
               <TabsContent value="cases">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Case Performance</CardTitle>
-                    <CardDescription>Detailed metrics for all your cases</CardDescription>
+                    <CardTitle>{t('reports.case_performance')}</CardTitle>
+                    <CardDescription>{t('reports.case_performance_desc')}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-center py-12 text-gray-500">Case performance details will appear here</p>
+                    <p className="text-center py-12 text-gray-500">{t('reports.case_performance_placeholder')}</p>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -251,13 +253,13 @@ const ReportsIndex = () => {
               <TabsContent value="sessions">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Court Sessions</CardTitle>
-                    <CardDescription>Statistics for all court sessions</CardDescription>
+                    <CardTitle>{t('reports.court_sessions')}</CardTitle>
+                    <CardDescription>{t('reports.court_sessions_desc')}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-col items-center gap-4 py-12">
                       <Calendar className="h-12 w-12 text-gray-400" />
-                      <p className="text-gray-500">Session statistics will appear here</p>
+                      <p className="text-gray-500">{t('reports.session_statistics_placeholder')}</p>
                       {/* Scheduling reserved for court/admin; hide generic button */}
                     </div>
                   </CardContent>

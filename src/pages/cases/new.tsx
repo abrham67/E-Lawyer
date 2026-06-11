@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 // Supabase removed; using backend API
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +27,7 @@ import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Profile } from "@/types/database.types";
+import { useTranslation } from "react-i18next";
 
 
 const caseFormSchema = z.object({
@@ -53,6 +54,7 @@ const NewCase = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [selectedClientCaseId, setSelectedClientCaseId] = useState<string>("");
+  const { t } = useTranslation();
 
   const form = useForm<z.infer<typeof caseFormSchema>>({
     resolver: zodResolver(caseFormSchema),
@@ -65,13 +67,34 @@ const NewCase = () => {
     },
   });
 
+  // Fetch cases helper (component scope) - used by effects and after creating a case
+  const fetchCases = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/cases', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!response.ok) throw new Error(t('new_case.failed_fetch_cases'));
+      const data = await response.json();
+      const list = Array.isArray(data?.cases) ? data.cases : (Array.isArray(data) ? data : []);
+      const normalized = list.map((c: any) => ({ id: c.id || c._id || String(c._id || ''), ...c }));
+      setCases(normalized);
+    } catch (error: any) {
+      toast({
+        title: t('new_case.error'),
+        description: error.message || t('new_case.failed_load_cases'),
+        variant: 'destructive',
+      });
+    }
+  }, [toast, t]);
+
   // ...existing code...
   useEffect(() => {
     // Parse prefill params
     const qs = new URLSearchParams(location.search);
     const client = qs.get('client');
-  const fromCase = qs.get('fromCase');
-  if (fromCase) setSelectedClientCaseId(fromCase);
+    const fromCase = qs.get('fromCase');
+    if (fromCase) setSelectedClientCaseId(fromCase);
     const title = qs.get('title');
     const description = qs.get('description');
     if (client) setSelectedClientId(client);
@@ -79,7 +102,7 @@ const NewCase = () => {
     if (description) form.setValue('description', description);
 
     // Optional: fetch source case for richer prefill if id present and we lack details
-  const maybeFetchSource = async () => {
+    const maybeFetchSource = async () => {
       if (!fromCase) return;
       try {
         const token = localStorage.getItem('token');
@@ -95,15 +118,17 @@ const NewCase = () => {
         }
       } catch {}
     };
-    maybeFetchSource();
 
-  const fetchUserProfileAndClients = async () => {
+    
+
+
+    const fetchUserProfileAndClients = async () => {
       try {
         const token = localStorage.getItem('token');
         const meRes = await fetch('/api/auth/me', {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
-        if (!meRes.ok) throw new Error('Authentication required');
+        if (!meRes.ok) throw new Error(t('new_case.authentication_required'));
         const meData = await meRes.json();
         const user = meData.user;
         const uid = user?.id || user?._id || user?.user_id;
@@ -153,8 +178,8 @@ const NewCase = () => {
               setAllClients(normalized);
             }
           }
-          // Load courts (users with role=court)
-          const courtsRes = await fetch('/api/users?role=court', {
+          // Load courts
+          const courtsRes = await fetch('/api/profiles?role=court', {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           });
           if (courtsRes.ok) {
@@ -175,15 +200,17 @@ const NewCase = () => {
             setCourts(uniqueCourts);
           }
         }
-  setAuthChecked(true);
+        setAuthChecked(true);
       } catch (error: any) {
         console.error('Error fetching profile/clients:', error.message);
-  setAuthChecked(true);
+        setAuthChecked(true);
       }
     };
+
+    maybeFetchSource();
     fetchUserProfileAndClients();
     fetchCases();
-  }, [location.search]);
+  }, [location.search, fetchCases, form, navigate, t]);
   // Now fetches clients for lawyers
 
   // Derive accepted clients from active cases assigned to this lawyer
@@ -230,7 +257,7 @@ const NewCase = () => {
       }
     }
     setClients(filtered);
-  }, [cases, allClients, userRole, selectedClientId]);
+  }, [cases, allClients, userRole, selectedClientId, t]);
 
   // Ensure we have user details for any client IDs present in active cases
   useEffect(() => {
@@ -250,7 +277,7 @@ const NewCase = () => {
         const fetched = await Promise.all(
           missing.map(async (id) => {
             try {
-              const res = await fetch(`/api/users/${id}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+              const res = await fetch(`/api/profiles/${id}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
               if (!res.ok) return null;
               const u = await res.json();
               return { ...u, id: u.id || u._id };
@@ -280,27 +307,9 @@ const NewCase = () => {
     if (cid && String(selectedClientId) !== String(cid)) {
       setSelectedClientId(String(cid));
     }
-  }, [selectedClientCaseId, cases]);
+  }, [selectedClientCaseId, cases, selectedClientId]);
 
-  const fetchCases = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/cases', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (!response.ok) throw new Error('Failed to fetch cases');
-      const data = await response.json();
-  const list = Array.isArray(data?.cases) ? data.cases : (Array.isArray(data) ? data : []);
-  const normalized = list.map((c: any) => ({ id: c.id || c._id || String(c._id || ''), ...c }));
-  setCases(normalized);
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to load cases',
-        variant: 'destructive',
-      });
-    }
-  };
+  
 
   const onSubmit = async (values: z.infer<typeof caseFormSchema>) => {
     try {
@@ -310,27 +319,16 @@ const NewCase = () => {
       const meRes = await fetch('/api/auth/me', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      if (!meRes.ok) throw new Error('You must be logged in to create a case');
+      if (!meRes.ok) throw new Error(t('new_case.must_login_create'));
       const meData = await meRes.json();
       const user = meData.user;
-      if (!user) throw new Error('You must be logged in to create a case');
+      if (!user) throw new Error(t('new_case.must_login_create'));
 
   // Only allow lawyers to submit
   if (userRole !== 'lawyer') {
         toast({
-          title: 'Permission Denied',
-          description: 'Only lawyers can create cases.',
-          variant: 'destructive',
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Court selection is required
-      if (!selectedCourtId) {
-        toast({
-          title: 'Court Required',
-          description: 'Please select a court for this case.',
+          title: t('new_case.permission_denied'),
+          description: t('new_case.only_lawyers'),
           variant: 'destructive',
         });
         setLoading(false);
@@ -340,8 +338,8 @@ const NewCase = () => {
       // Create case data with correct field names
     if (!selectedClientId) {
         toast({
-      title: 'Client Case Required',
-      description: 'Please select a client case.',
+      title: t('new_case.client_case_required'),
+      description: t('new_case.select_client_case'),
           variant: 'destructive',
         });
         setLoading(false);
@@ -355,7 +353,7 @@ const NewCase = () => {
         status: values.status,
         clientId: selectedClientId,
         lawyerId: user.id || user._id || user.user_id,
-        courtId: selectedCourtId,
+        ...(selectedCourtId ? { courtId: selectedCourtId } : {}),
       };
 
       const response = await fetch('/api/cases', {
@@ -378,13 +376,13 @@ const NewCase = () => {
           }
         } catch {}
         console.error('Backend response:', errorMsg);
-        throw new Error(`Failed to create case: ${errorMsg}`);
+        throw new Error(t('new_case.failed_create_prefix', { message: errorMsg }));
       }
       // Parse created case to get its ID
       let createdCase: any = null;
       try { createdCase = JSON.parse(responseText); } catch {}
       const createdCaseId = createdCase?.id || createdCase?._id;
-  toast({ title: 'Success', description: 'Case created successfully' });
+  toast({ title: t('new_case.success'), description: t('new_case.case_created') });
       // If a document was selected, upload it now
       if (selectedFile && createdCaseId) {
         try {
@@ -399,11 +397,11 @@ const NewCase = () => {
           });
           if (!uploadRes.ok) {
             const t = await uploadRes.text();
-            throw new Error(t || 'Upload failed');
+            throw new Error(t || t('new_case.upload_failed'));
           }
-          toast({ title: 'Document uploaded', description: selectedFile.name });
+          toast({ title: t('new_case.document_uploaded'), description: selectedFile.name });
         } catch (e: any) {
-          toast({ title: 'Document upload failed', description: e.message || String(e), variant: 'destructive' });
+          toast({ title: t('new_case.document_upload_failed'), description: e.message || String(e), variant: 'destructive' });
         }
       }
   await fetchCases();
@@ -411,8 +409,8 @@ const NewCase = () => {
     } catch (error: any) {
       console.error('Error creating case:', error);
       toast({
-        title: 'Error',
-        description: `Failed to create case: ${error.message || error.toString()}`,
+        title: t('new_case.error'),
+        description: t('new_case.failed_create_prefix', { message: error.message || error.toString() }),
         variant: 'destructive',
       });
     } finally {
@@ -430,10 +428,10 @@ const NewCase = () => {
       <Navbar />
       <main className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Case Management</h1>
+          <h1 className="text-2xl font-bold">{t('new_case.case_management')}</h1>
           <Button type="button" onClick={handleCreateCase}>
             <Plus className="h-4 w-4 mr-2" />
-            Create New Case
+            {t('new_case.create_new_case')}
           </Button>
         </div>
 
@@ -442,12 +440,12 @@ const NewCase = () => {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-primary">
                 <FileText className="h-5 w-5" />
-                All Cases
+                {t('new_case.all_cases')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">{cases.length}</p>
-              <p className="text-sm text-gray-500 mt-1">Total cases</p>
+              <p className="text-sm text-gray-500 mt-1">{t('new_case.total_cases')}</p>
             </CardContent>
           </Card>
           
@@ -455,14 +453,14 @@ const NewCase = () => {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-primary">
                 <Users className="h-5 w-5" />
-                Active Cases
+                {t('new_case.active_cases')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">
                 {cases.filter((c: any) => c.status === 'active').length}
               </p>
-              <p className="text-sm text-gray-500 mt-1">Currently in progress</p>
+              <p className="text-sm text-gray-500 mt-1">{t('new_case.currently_in_progress')}</p>
             </CardContent>
           </Card>
           
@@ -470,7 +468,7 @@ const NewCase = () => {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-primary">
                 <Calendar className="h-5 w-5" />
-                Recent Cases
+                {t('new_case.recent_cases')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -482,24 +480,24 @@ const NewCase = () => {
                   return createdDate > oneMonthAgo;
                 }).length}
               </p>
-              <p className="text-sm text-gray-500 mt-1">Added in the last month</p>
+              <p className="text-sm text-gray-500 mt-1">{t('new_case.added_last_month')}</p>
             </CardContent>
           </Card>
         </div>
 
         {!authChecked ? (
           <div className="bg-white p-6 rounded-lg shadow-sm mb-8 text-center">
-            <p className="text-gray-600">Loading...</p>
+            <p className="text-gray-600">{t('new_case.loading')}</p>
           </div>
         ) : userRole === 'lawyer' ? (
           <div id="case-form-section" className="bg-white p-6 rounded-lg shadow-sm mb-8">
-            <h2 className="text-xl font-semibold mb-4">Create New Case</h2>
+            <h2 className="text-xl font-semibold mb-4">{t('new_case.create_new_case')}</h2>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 {/* Client selection for lawyers */}
                 <>
                   <div className="mb-4">
-                    <label className="block mb-1 font-medium">Select Client case</label>
+                    <label className="block mb-1 font-medium">{t('new_case.select_client_case_label')}</label>
                     <select
                       className="w-full border rounded px-3 py-2"
                       value={selectedClientCaseId}
@@ -513,7 +511,7 @@ const NewCase = () => {
                       }}
                       required
                     >
-                      <option value="">-- Select a client case --</option>
+                      <option value="">{t('new_case.select_client_case_option')}</option>
                       {(Array.isArray(cases) ? cases : [])
                         .filter((c: any) => String(c.status).toLowerCase() === 'active')
                         .map((c: any) => {
@@ -528,18 +526,17 @@ const NewCase = () => {
                         })}
                     </select>
                     {(!Array.isArray(cases) || cases.filter((c: any) => String(c.status).toLowerCase() === 'active').length === 0) && (
-                      <p className="text-sm text-amber-700 mt-1">No active client cases found. Accept a client case first.</p>
+                      <p className="text-sm text-amber-700 mt-1">{t('new_case.no_active_client_cases')}</p>
                     )}
                   </div>
                   <div className="mb-4">
-                    <label className="block mb-1 font-medium">Select Court <span className="text-red-600">*</span></label>
+                    <label className="block mb-1 font-medium">{t('new_case.select_court_label')}</label>
                     <select
                       className="w-full border rounded px-3 py-2"
                       value={selectedCourtId}
                       onChange={e => setSelectedCourtId(e.target.value)}
-                      required
                     >
-                      <option value="">-- Select a court --</option>
+                      <option value="">{t('new_case.select_court_option')}</option>
                       {courts.map(court => {
                         const label = court.court_name || court.full_name || court.email || court.id;
                         return (
@@ -552,22 +549,22 @@ const NewCase = () => {
                   </div>
                   {/* Optional: Upload initial document for this case */}
                   <div className="mb-4">
-                    <label className="block mb-1 font-medium">Attach Document (optional)</label>
+                    <label className="block mb-1 font-medium">{t('new_case.attach_document')}</label>
                     <input
                       type="file"
                       className="w-full border rounded px-3 py-2"
                       onChange={e => setSelectedFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
                     />
-                    <p className="text-xs text-gray-500 mt-1">You can upload a PDF, image, or doc. It will be attached after the case is created.</p>
+                    <p className="text-xs text-gray-500 mt-1">{t('new_case.attach_document_desc')}</p>
                   </div>
                   <FormField
                     control={form.control}
                     name="title"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Case Title</FormLabel>
+                        <FormLabel>{t('new_case.case_title')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="Enter case title" {...field} />
+                          <Input placeholder={t('new_case.enter_case_title')} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -579,9 +576,9 @@ const NewCase = () => {
                   name="description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Description</FormLabel>
+                      <FormLabel>{t('new_case.description')}</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Enter case description" {...field} className="min-h-[100px]" />
+                        <Textarea placeholder={t('new_case.enter_case_description')} {...field} className="min-h-[100px]" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -593,9 +590,9 @@ const NewCase = () => {
                     name="case_type"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Case Type</FormLabel>
+                        <FormLabel>{t('new_case.case_type')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., Civil, Criminal" {...field} />
+                          <Input placeholder={t('new_case.case_type_placeholder')} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -606,9 +603,9 @@ const NewCase = () => {
                     name="practice_area"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Practice Area</FormLabel>
+                        <FormLabel>{t('new_case.practice_area')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., Family Law, Corporate" {...field} />
+                          <Input placeholder={t('new_case.practice_area_placeholder')} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -620,17 +617,17 @@ const NewCase = () => {
                   name="status"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Status</FormLabel>
+                      <FormLabel>{t('new_case.status')}</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select case status" />
+                            <SelectValue placeholder={t('new_case.select_case_status')} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="closed">Closed</SelectItem>
+                          <SelectItem value="pending">{t('new_case.pending')}</SelectItem>
+                          <SelectItem value="active">{t('new_case.active')}</SelectItem>
+                          <SelectItem value="closed">{t('new_case.closed')}</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -643,7 +640,7 @@ const NewCase = () => {
                     disabled={loading}
                     className="w-full md:w-auto"
                   >
-                    {loading ? "Creating..." : "Create Case"}
+                    {loading ? t('new_case.creating') : t('new_case.create_case')}
                   </Button>
                 </div>
               </form>
@@ -651,13 +648,13 @@ const NewCase = () => {
           </div>
   ) : (
           <div id="case-form-section" className="bg-white p-6 rounded-lg shadow-sm mb-8 text-center">
-            <h2 className="text-xl font-semibold mb-4">Create New Case</h2>
-            <p className="text-gray-600">Only lawyers can create new cases. If you are a client or court user, please contact your lawyer to initiate a case.</p>
+            <h2 className="text-xl font-semibold mb-4">{t('new_case.create_new_case')}</h2>
+            <p className="text-gray-600">{t('new_case.only_lawyers_message')}</p>
           </div>
         )}
 
         <div className="bg-white p-6 rounded-lg shadow-sm">
-          <h2 className="text-xl font-semibold mb-4">Case List</h2>
+          <h2 className="text-xl font-semibold mb-4">{t('new_case.case_list')}</h2>
           {cases.length > 0 ? (
             <div className="space-y-4">
               {cases.map((aCase: any, idx: number) => (
@@ -668,10 +665,10 @@ const NewCase = () => {
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-medium text-lg">{aCase.title}</h3>
-                      <p className="text-gray-600 mt-1">{aCase.description || 'No description provided'}</p>
+                      <p className="text-gray-600 mt-1">{aCase.description || t('new_case.no_description')}</p>
                       <div className="flex items-center gap-4 mt-2">
                         <span className="text-sm text-gray-500">
-                          Created: {new Date(aCase.created_at).toLocaleDateString()}
+                          {t('new_case.created')}: {new Date(aCase.created_at).toLocaleDateString()}
                         </span>
                         <span className={`px-2 py-1 text-xs rounded-full ${
                           aCase.status === 'active' 
@@ -688,7 +685,7 @@ const NewCase = () => {
                       onClick={() => navigate(`/cases/${aCase.id}`)}
                       variant="outline"
                     >
-                      View Details
+                      {t('new_case.view_details')}
                     </Button>
                   </div>
                 </div>
@@ -697,10 +694,10 @@ const NewCase = () => {
           ) : (
             <div className="text-center py-12 border rounded-lg bg-gray-50">
               <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <p className="text-gray-500 mb-4">No cases found</p>
+              <p className="text-gray-500 mb-4">{t('new_case.no_cases_found')}</p>
               <Button type="button" onClick={handleCreateCase}>
                 <Plus className="h-4 w-4 mr-2" />
-                Create Your First Case
+                {t('new_case.create_first_case')}
               </Button>
             </div>
           )}

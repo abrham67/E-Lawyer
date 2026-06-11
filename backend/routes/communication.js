@@ -46,6 +46,10 @@ const ENC_KEY = process.env.MESSAGE_SECRET && process.env.MESSAGE_SECRET.length 
   ? crypto.createHash('sha256').update(process.env.MESSAGE_SECRET).digest()
   : null;
 
+function isAdminUser(req) {
+  return String(req?.user?.role || '').toLowerCase() === 'admin';
+}
+
 function encryptText(plain) {
   if (!ENC_KEY) return { text: plain };
   const iv = crypto.randomBytes(12);
@@ -102,15 +106,19 @@ router.get('/history', authenticateToken, async (req, res) => {
     const recipientId = req.query.recipientId;
     if (!recipientId) return res.status(400).json({ error: 'recipientId is required' });
     const userId = req.user.id;
+    const isAdmin = isAdminUser(req);
     // Validate ObjectId format; if invalid (e.g., demo-client), return empty history gracefully
     const isValidId = String(recipientId).match(/^[a-fA-F0-9]{24}$/);
     if (!isValidId) return res.json({ messages: [] });
-  const raw = await Message.find({
-      $or: [
-        { senderId: userId, recipientId },
-        { senderId: recipientId, recipientId: userId }
-      ]
-    }).sort({ created_at: 1 });
+    const query = isAdmin
+      ? { $or: [{ senderId: recipientId }, { recipientId: recipientId }] }
+      : {
+        $or: [
+          { senderId: userId, recipientId },
+          { senderId: recipientId, recipientId: userId }
+        ]
+      };
+  const raw = await Message.find(query).sort({ created_at: 1 });
   const messages = raw.map(m => decryptMessage(m));
   res.json({ messages });
   } catch (err) {
@@ -122,7 +130,7 @@ router.get('/history', authenticateToken, async (req, res) => {
 router.get('/messages', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-  const raw = await Message.find({ $or: [{ senderId: userId }, { recipientId: userId }] })
+  const raw = await Message.find(isAdminUser(req) ? {} : { $or: [{ senderId: userId }, { recipientId: userId }] })
       .sort({ created_at: -1 })
       .limit(100);
   const messages = raw.map(m => decryptMessage(m));
@@ -195,7 +203,7 @@ router.get('/messages/:id', authenticateToken, async (req, res) => {
   const raw = await Message.findById(req.params.id);
   const msg = decryptMessage(raw);
     if (!msg) return res.status(404).json({ error: 'Not found' });
-    if (String(msg.senderId) !== req.user.id && String(msg.recipientId) !== req.user.id) {
+    if (String(msg.senderId) !== req.user.id && String(msg.recipientId) !== req.user.id && !isAdminUser(req)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
     res.json(msg);
@@ -209,7 +217,7 @@ router.post('/messages/:id/delivered', authenticateToken, async (req, res) => {
   try {
     const msg = await Message.findById(req.params.id);
     if (!msg) return res.status(404).json({ error: 'Not found' });
-    if (String(msg.recipientId) !== req.user.id && String(msg.senderId) !== req.user.id) {
+    if (String(msg.recipientId) !== req.user.id && String(msg.senderId) !== req.user.id && !isAdminUser(req)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
     if (!msg.delivered_at) msg.delivered_at = new Date();
@@ -227,7 +235,7 @@ router.post('/messages/:id/read', authenticateToken, async (req, res) => {
   try {
     const msg = await Message.findById(req.params.id);
     if (!msg) return res.status(404).json({ error: 'Not found' });
-    if (String(msg.recipientId) !== req.user.id) {
+    if (String(msg.recipientId) !== req.user.id && !isAdminUser(req)) {
       return res.status(403).json({ error: 'Forbidden: only recipient can read' });
     }
     msg.read = true;
@@ -249,7 +257,7 @@ router.post('/messages/:id/reactions', authenticateToken, async (req, res) => {
     const msg = await Message.findById(req.params.id);
     if (!msg) return res.status(404).json({ error: 'Not found' });
     // Only participants can react
-    if (![String(msg.senderId), String(msg.recipientId)].includes(String(req.user.id))) {
+    if (![String(msg.senderId), String(msg.recipientId)].includes(String(req.user.id)) && !isAdminUser(req)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
     const react = { userId: req.user.id, type, created_at: new Date() };
@@ -272,7 +280,7 @@ router.delete('/messages/:id', authenticateToken, async (req, res) => {
   try {
     const msg = await Message.findById(req.params.id);
     if (!msg) return res.status(404).json({ error: 'Not found' });
-    if (String(msg.senderId) !== req.user.id) {
+    if (String(msg.senderId) !== req.user.id && !isAdminUser(req)) {
       return res.status(403).json({ error: 'Forbidden: only sender can delete' });
     }
     await Message.findByIdAndDelete(req.params.id);

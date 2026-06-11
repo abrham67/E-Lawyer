@@ -5,18 +5,20 @@ const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
 
-// Get all sessions (lawyer, client, judge, admin only)
-router.get('/', authenticateToken, authorizeRoles('lawyer', 'client', 'judge', 'admin'), async (req, res) => {
+// Get all sessions (admin sees all; court sees own)
+router.get('/', authenticateToken, authorizeRoles('admin', 'court'), async (req, res) => {
   try {
-    const sessions = await Session.find();
+    const role = String(req.user.role || '').toLowerCase();
+    const filter = role === 'admin' ? {} : { judgeId: req.user.id };
+    const sessions = await Session.find(filter);
     res.json(sessions);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Create a new session (lawyer or judge only)
-router.post('/', authenticateToken, authorizeRoles('lawyer', 'judge'), [
+// Create a new session (court or admin)
+router.post('/', authenticateToken, authorizeRoles('court', 'admin'), [
   body('caseId').notEmpty(),
   body('judgeId').notEmpty(),
   body('scheduled_date').isISO8601(),
@@ -28,7 +30,7 @@ router.post('/', authenticateToken, authorizeRoles('lawyer', 'judge'), [
   try {
     // Generate built-in WebRTC meeting room
     const roomId = uuidv4();
-    const virtual_meeting_link = `/video/room/${roomId}`;
+    const virtual_meeting_link = `/meeting/${roomId}`;
     const newSession = new Session({
       ...req.body,
       virtual_meeting_link,
@@ -41,11 +43,16 @@ router.post('/', authenticateToken, authorizeRoles('lawyer', 'judge'), [
   }
 });
 
-// Get a single session by ID (lawyer, client, judge, admin only)
-router.get('/:id', authenticateToken, authorizeRoles('lawyer', 'client', 'judge', 'admin'), async (req, res) => {
+// Get a single session by ID (admin or owning court judge)
+router.get('/:id', authenticateToken, authorizeRoles('admin', 'court'), async (req, res) => {
   try {
     const foundSession = await Session.findById(req.params.id);
     if (!foundSession) return res.status(404).json({ error: 'Session not found' });
+    const isAdmin = String(req.user.role || '').toLowerCase() === 'admin';
+    const judgeId = foundSession.judgeId && foundSession.judgeId.toString();
+    if (!isAdmin && judgeId && judgeId !== String(req.user.id)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
     res.json(foundSession);
   } catch (err) {
     res.status(500).json({ error: err.message });

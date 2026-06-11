@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { Case, Profile } from '@/types/database.types';
+import { apiGet } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 
 export function useCase() {
   const { id } = useParams<{ id: string }>();
@@ -9,6 +11,8 @@ export function useCase() {
   const [caseData, setCaseData] = useState<Case | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const roleLower = String(user?.role || '').toLowerCase();
 
   useEffect(() => {
     const fetchCase = async () => {
@@ -20,20 +24,38 @@ export function useCase() {
 
         setLoading(true);
         const token = localStorage.getItem('token');
-        const response = await fetch(`/api/cases/${id}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-        if (!response.ok) {
-          const msg = await response.text();
-          const status = response.status;
-          const desc = msg || `${status} ${response.statusText}`;
-          toast({
-            title: status === 401 ? 'Please sign in' : (status === 403 ? 'Access denied' : 'Case not available'),
-            description: desc,
-            variant: 'destructive',
-          });
-          navigate('/cases');
-          return;
+        let data: any = null;
+        try {
+          data = await apiGet(`/api/cases/${id}`, token || undefined);
+        } catch (primaryErr: any) {
+          const status = Number(primaryErr?.status || primaryErr?.payload?.status || 0);
+          const canFallback = roleLower === 'lawyer' && (status === 403 || status === 404);
+          if (!canFallback) {
+            const desc = primaryErr?.message || `HTTP ${status || 'error'}`;
+            toast({
+              title: status === 401 ? 'Please sign in' : (status === 403 ? 'Access denied' : 'Case not available'),
+              description: desc,
+              variant: 'destructive',
+            });
+            navigate('/cases');
+            return;
+          }
+
+          // Fallback for lawyers: load the case from the assigned case list and match by id.
+          const list = await apiGet('/api/cases', token || undefined);
+          const cases = Array.isArray((list as any)?.cases) ? (list as any).cases : (Array.isArray(list) ? list : []);
+          data = cases.find((c: any) => String(c.id || c._id) === String(id));
+          if (!data) {
+            const desc = primaryErr?.message || `HTTP ${status || 'error'}`;
+            toast({
+              title: status === 401 ? 'Please sign in' : (status === 403 ? 'Access denied' : 'Case not available'),
+              description: desc,
+              variant: 'destructive',
+            });
+            navigate('/cases');
+            return;
+          }
         }
-        const data = await response.json();
 
         if (!data) {
           toast({
@@ -87,7 +109,7 @@ export function useCase() {
     };
 
     fetchCase();
-  }, [id, navigate, toast]);
+  }, [id, navigate, toast, roleLower]);
 
   return { caseData, loading };
 }

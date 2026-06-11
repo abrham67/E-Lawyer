@@ -12,7 +12,7 @@ export function useSignaling(roomId: string) {
 
   useEffect(() => {
     if (!roomId) return;
-  socketRef.current = io(SIGNALING_URL, { path: '/ws/socket.io', query: user?.id ? { userId: user.id } : undefined });
+    socketRef.current = io(SIGNALING_URL, { path: '/ws/socket.io', query: user?.id ? { userId: user.id } : undefined });
     if (user?.id) {
       try { socketRef.current.emit('join-user-room', String(user.id)); } catch {}
     }
@@ -23,22 +23,19 @@ export function useSignaling(roomId: string) {
     socketRef.current.on("user-left", (id: string) => {
       setParticipants((prev) => prev.filter((pid) => pid !== id));
     });
-    // Denied join from server (e.g., session ended/cancelled)
     socketRef.current.on("join-denied", (payload: any) => {
       try {
         console.warn('Join denied:', payload);
       } catch {}
       navigate('/');
     });
-    // Session ended broadcast
     socketRef.current.on("session-ended", () => {
       navigate('/');
     });
-    // Optionally: fetch current participants
     return () => {
       socketRef.current.disconnect();
     };
-  }, [roomId]);
+  }, [roomId, navigate, user?.id]);
 
   return { socket: socketRef.current, participants };
 }

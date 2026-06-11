@@ -5,13 +5,17 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { getApiErrorMessage } from "@/lib/apiError";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { Scale } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const Auth = () => {
   const navigate = useNavigate();
   const {
     toast
   } = useToast();
+  const { t } = useTranslation();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -152,7 +156,17 @@ const Auth = () => {
         });
         if (!response.ok) {
           const err = await response.json().catch(() => ({}));
-          throw new Error(err.error || 'Invalid login credentials');
+          const message = getApiErrorMessage(err, 'Invalid login credentials');
+          if (response.status === 403 && /pending admin verification/i.test(String(message))) {
+            toast({
+              title: "Verification Required",
+              description: "Your court account is pending admin verification. Please wait for an admin to approve it.",
+              variant: "destructive",
+              duration: 6000,
+            });
+            return;
+          }
+          throw new Error(message);
         }
   const data = await response.json();
         if (data.token) {
@@ -197,32 +211,37 @@ const Auth = () => {
         }
   } else {
         // Signup using new backend API
+        const registerPayload: Record<string, any> = {
+          email: formData.email.trim(),
+          password: formData.password,
+          full_name: formData.role === "court" ? "Court" : formData.fullName.trim(),
+          role: formData.role,
+          id_number: (formData.idNumber || '').trim() || undefined,
+        };
+        if (formData.role === "lawyer") {
+          registerPayload.bar_number = formData.barNumber.trim();
+          registerPayload.specialization = formData.specialization.trim();
+        }
+        if (formData.role === "court") {
+          registerPayload.court_name = formData.courtName.trim();
+          registerPayload.jurisdiction = formData.jurisdiction.trim();
+          registerPayload.court_type = formData.courtType.trim();
+        }
         const response = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: formData.email,
-            password: formData.password,
-            full_name: formData.role === "court" ? "Court" : formData.fullName.trim(),
-            role: formData.role,
-            bar_number: formData.role === "lawyer" ? formData.barNumber.trim() : null,
-            specialization: formData.role === "lawyer" ? formData.specialization.trim() : null,
-            court_name: formData.role === "court" ? formData.courtName.trim() : null,
-            jurisdiction: formData.role === "court" ? formData.jurisdiction.trim() : null,
-    court_type: formData.role === "court" ? formData.courtType.trim() : null,
-    id_number: (formData.idNumber || '').trim() || null,
-          })
+          body: JSON.stringify(registerPayload)
         });
         if (!response.ok) {
           const err = await response.json().catch(() => ({}));
-          throw new Error(err.error || 'Registration failed');
+          throw new Error(getApiErrorMessage(err, 'Registration failed'));
         }
     // If user uploaded an ID photo, upload it now (requires auth, so skip unless you want to auto-login)
     // For simplicity, we show a note. You can enable auto-login to upload immediately.
         toast({
           title: "Account Created Successfully",
-      description: formData.role === 'court'
-        ? "You can now log in with your credentials."
+      description: ['lawyer', 'court'].includes(formData.role)
+        ? `Your ${formData.role} account is pending admin verification. You can log in after an admin approves it.`
         : (formData.idPhoto ? "Account created. After logging in, please upload your ID photo in Profile." : "You can now log in with your credentials."),
           duration: 5000
         });
@@ -265,21 +284,23 @@ const Auth = () => {
             <Scale className="h-5 w-5" aria-hidden="true" />
             <span className="text-base font-semibold tracking-wide">E-Lawyer</span>
           </div>
-          {/* Right: empty to preserve true centering */}
-          <div className="justify-self-end" />
+          {/* Right: language selector */}
+          <div className="justify-self-end">
+            <LanguageSwitcher />
+          </div>
         </div>
       </header>
       <div className="container mx-auto px-4 py-8 flex items-center justify-center">
         <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-lg shadow-lg">
         <div className="text-center">
           <p className="text-muted-foreground">
-            {isLogin ? "Sign in to your account" : "Create a new account"}
+            {isLogin ? t('auth.sign_in_to_account') : t('auth.create_new_account')}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('auth.email')}</Label>
             <Input 
               id="email" 
               type="email" 
@@ -289,35 +310,35 @@ const Auth = () => {
                 email: e.target.value
               })} 
               required 
-              placeholder="Enter your email address" 
+              placeholder={t('auth.enter_email')}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t('auth.password')}</Label>
             <Input id="password" type="password" value={formData.password} onChange={e => setFormData({
             ...formData,
             password: e.target.value
-          })} required placeholder="Enter your password" minLength={6} />
+          })} required placeholder={t('auth.enter_password')} minLength={6} />
           </div>
 
           {!isLogin && <>
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Label htmlFor="confirmPassword">{t('auth.confirm_password')}</Label>
                 <Input
                   id="confirmPassword"
                   type="password"
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   required
-                  placeholder="Re-enter your password"
+                  placeholder={t('auth.re_enter_password')}
                   minLength={6}
                 />
               </div>
               {formData.role !== "court" && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="idNumber">ID Number</Label>
+                    <Label htmlFor="idNumber">{t('auth.id_number')}</Label>
                     <Input
                       id="idNumber"
                       type="text"
@@ -326,11 +347,11 @@ const Auth = () => {
                         ...formData,
                         idNumber: e.target.value
                       })}
-                      placeholder="Enter your national ID/passport number"
+                      placeholder={t('auth.enter_id_number')}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="fullName">Full Name</Label>
+                    <Label htmlFor="fullName">{t('auth.full_name')}</Label>
                     <Input
                       id="fullName"
                       type="text"
@@ -340,14 +361,14 @@ const Auth = () => {
                         fullName: e.target.value
                       })}
                       required
-                      placeholder="Enter your full name"
+                      placeholder={t('auth.enter_full_name')}
                     />
                   </div>
                 </>
               )}
 
               <div className="space-y-2">
-                <Label>Role</Label>
+                <Label>{t('auth.role')}</Label>
                 <RadioGroup value={formData.role} onValueChange={(value: "lawyer" | "client" | "court") => setFormData({
               ...formData,
               role: value,
@@ -355,65 +376,65 @@ const Auth = () => {
             })} className="flex flex-wrap gap-4">
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="client" id="client" />
-                    <Label htmlFor="client">Client</Label>
+                    <Label htmlFor="client">{t('auth.client')}</Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="lawyer" id="lawyer" />
-                    <Label htmlFor="lawyer">Lawyer</Label>
+                    <Label htmlFor="lawyer">{t('auth.lawyer')}</Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="court" id="court" />
-                    <Label htmlFor="court">Court</Label>
+                    <Label htmlFor="court">{t('auth.court')}</Label>
                   </div>
                 </RadioGroup>
               </div>
 
               {formData.role === "lawyer" && <>
                   <div className="space-y-2">
-                    <Label htmlFor="barNumber">Bar Number</Label>
+                    <Label htmlFor="barNumber">{t('auth.bar_number')}</Label>
                     <Input id="barNumber" type="text" value={formData.barNumber} onChange={e => setFormData({
                 ...formData,
                 barNumber: e.target.value
-              })} required placeholder="Enter your bar number" />
+              })} required placeholder={t('auth.enter_bar_number')} />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="specialization">Specialization</Label>
+                    <Label htmlFor="specialization">{t('auth.specialization')}</Label>
                     <Input id="specialization" type="text" value={formData.specialization} onChange={e => setFormData({
                 ...formData,
                 specialization: e.target.value
-              })} required placeholder="Enter your specialization" />
+              })} required placeholder={t('auth.enter_specialization')} />
                   </div>
                 </>}
 
               {formData.role === "court" && <>
                   <div className="space-y-2">
-                    <Label htmlFor="courtName">Court Name</Label>
+                    <Label htmlFor="courtName">{t('auth.court_name')}</Label>
                     <Input id="courtName" type="text" value={formData.courtName} onChange={e => setFormData({
                 ...formData,
                 courtName: e.target.value
-              })} required placeholder="Enter court name" />
+              })} required placeholder={t('auth.enter_court_name')} />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="jurisdiction">Jurisdiction</Label>
+                    <Label htmlFor="jurisdiction">{t('auth.jurisdiction')}</Label>
                     <Input id="jurisdiction" type="text" value={formData.jurisdiction} onChange={e => setFormData({
                 ...formData,
                 jurisdiction: e.target.value
-              })} required placeholder="Enter jurisdiction" />
+              })} required placeholder={t('auth.enter_jurisdiction')} />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="courtType">Court Type</Label>
+                    <Label htmlFor="courtType">{t('auth.court_type')}</Label>
                     <Input id="courtType" type="text" value={formData.courtType} onChange={e => setFormData({
                 ...formData,
                 courtType: e.target.value
-              })} required placeholder="Enter court type" />
+              })} required placeholder={t('auth.enter_court_type')} />
                   </div>
                 </>}
               {formData.role !== "court" && (
                 <div className="space-y-2">
-                  <Label htmlFor="idPhoto">ID Photo (optional)</Label>
+                  <Label htmlFor="idPhoto">{t('auth.id_photo_optional')}</Label>
                   <Input
                     id="idPhoto"
                     type="file"
@@ -424,14 +445,14 @@ const Auth = () => {
                     }}
                   />
                   <p className="text-xs text-muted-foreground">
-                    You can upload this later from your Profile page if preferred.
+                    {t('auth.id_photo_note')}
                   </p>
                 </div>
               )}
             </>}
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Loading..." : isLogin ? "Sign In" : "Create Account"}
+            {loading ? t('auth.loading') : isLogin ? t('auth.sign_in') : t('auth.create_account')}
           </Button>
         </form>
 
@@ -472,14 +493,14 @@ const Auth = () => {
                 }
               }}
             >
-              {"Forgot password?"}
+              {t('auth.forgot_password')}
             </button>
           </div>
         )}
 
         <div className="text-center">
           <button type="button" onClick={() => setIsLogin(!isLogin)} className="text-sm text-primary hover:underline">
-            {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+            {isLogin ? t('auth.switch_to_signup') : t('auth.switch_to_signin')}
           </button>
         </div>
         </div>

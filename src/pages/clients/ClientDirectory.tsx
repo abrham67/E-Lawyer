@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import io from 'socket.io-client';
+import { useTranslation } from 'react-i18next';
 
 interface Case {
   id: string;
@@ -33,9 +34,12 @@ const ClientDirectory = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'closed'>('all');
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const role = String(user?.role || '').toLowerCase();
   const isLawyer = role === 'lawyer';
+  const isAdmin = role === 'admin';
+  const canViewClientCases = isLawyer || isAdmin;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -44,19 +48,19 @@ const ClientDirectory = () => {
         const token = localStorage.getItem('token') || undefined;
         // 1) Fetch clients list
         let list: ClientWithCases[] = [];
-        if (isLawyer) {
+        if (canViewClientCases) {
           // Accepted clients (active cases) for this lawyer
           const res = await fetch('/api/cases/active-clients', { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal: controller.signal });
-          if (!res.ok) throw new Error('Failed to fetch active clients');
+          if (!res.ok) throw new Error(t('clients_directory.failed_fetch_active_clients'));
           list = await res.json();
         } else {
           const res = await fetch('/api/clients', { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal: controller.signal });
-          if (!res.ok) throw new Error('Failed to fetch clients');
+          if (!res.ok) throw new Error(t('clients_directory.failed_fetch_clients'));
           list = await res.json();
         }
 
         // 2) For lawyers, fetch all their cases once, then group by client
-        if (isLawyer) {
+        if (canViewClientCases) {
           const casesRes = await fetch('/api/cases', { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal: controller.signal });
           const raw = await casesRes.json();
           const cases = (raw && Array.isArray(raw.cases)) ? raw.cases : (Array.isArray(raw) ? raw : []);
@@ -88,16 +92,16 @@ const ClientDirectory = () => {
   setClients(list);
       } catch (error: any) {
         if (error?.name === 'AbortError') return;
-        toast({ title: 'Error', description: error.message || 'Failed to load clients', variant: 'destructive' });
+        toast({ title: t('clients_directory.error'), description: error.message || t('clients_directory.failed_load_clients'), variant: 'destructive' });
       }
     };
     fetchData();
     return () => controller.abort();
-  }, [toast, isLawyer]);
+  }, [toast, canViewClientCases, t]);
 
   // Realtime: refresh when case updated or created for this lawyer
   useEffect(() => {
-    if (!isLawyer || !user?.id) return;
+    if (!canViewClientCases || !user?.id) return;
     const s = io('/', { path: '/ws/socket.io', query: { userId: user.id } });
     const refresh = () => {
       // Re-run fetch via toggling dependency: simplest is to call location.reload or repeat fetch inline
@@ -128,7 +132,7 @@ const ClientDirectory = () => {
     s.on('case:assigned', refresh);
   s.on('case:deleted', refresh);
     return () => { try { s.disconnect(); } catch {} };
-  }, [isLawyer, user?.id]);
+  }, [canViewClientCases, user?.id]);
 
   const filteredClients = clients.filter((client) => {
     const matchText = client.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -148,13 +152,13 @@ const ClientDirectory = () => {
       <Navbar />
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <h1 className="text-2xl font-bold">My Clients</h1>
+          <h1 className="text-2xl font-bold">{t('clients_directory.my_clients')}</h1>
           <div className="flex items-center gap-3">
             <div className="relative w-full md:w-64">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 type="search"
-                placeholder="Search clients..."
+                placeholder={t('clients_directory.search_clients')}
                 className="pl-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -167,7 +171,7 @@ const ClientDirectory = () => {
                 onClick={() => setViewMode("grid")}
                 className="rounded-r-none"
               >
-                Grid
+                {t('clients_directory.grid')}
               </Button>
               <Button 
                 variant={viewMode === "list" ? "secondary" : "ghost"} 
@@ -175,7 +179,7 @@ const ClientDirectory = () => {
                 onClick={() => setViewMode("list")}
                 className="rounded-l-none"
               >
-                List
+                {t('clients_directory.list')}
               </Button>
             </div>
             <div className="flex border rounded-md">
@@ -185,7 +189,7 @@ const ClientDirectory = () => {
                 onClick={() => setStatusFilter('all')}
                 className="rounded-r-none"
               >
-                All
+                {t('clients_directory.all')}
               </Button>
               <Button 
                 variant={statusFilter === 'active' ? 'secondary' : 'ghost'}
@@ -193,7 +197,7 @@ const ClientDirectory = () => {
                 onClick={() => setStatusFilter('active')}
                 className="rounded-none"
               >
-                Active
+                {t('clients_directory.active')}
               </Button>
               <Button 
                 variant={statusFilter === 'closed' ? 'secondary' : 'ghost'}
@@ -201,7 +205,7 @@ const ClientDirectory = () => {
                 onClick={() => setStatusFilter('closed')}
                 className="rounded-l-none"
               >
-                Closed
+                {t('clients_directory.closed')}
               </Button>
             </div>
           </div>
@@ -212,12 +216,12 @@ const ClientDirectory = () => {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-primary">
                 <Users className="h-5 w-5" />
-                Total Clients
+                {t('clients_directory.total_clients')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">{clients.length}</p>
-              <p className="text-sm text-gray-500 mt-1">Active clients</p>
+              <p className="text-sm text-gray-500 mt-1">{t('clients_directory.active_clients')}</p>
             </CardContent>
           </Card>
           
@@ -225,12 +229,12 @@ const ClientDirectory = () => {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-primary">
                 <FileText className="h-5 w-5" />
-                Total Cases
+                {t('clients_directory.total_cases')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">{totalCases}</p>
-              <p className="text-sm text-gray-500 mt-1">Across all clients</p>
+              <p className="text-sm text-gray-500 mt-1">{t('clients_directory.across_all_clients')}</p>
             </CardContent>
           </Card>
           
@@ -238,18 +242,18 @@ const ClientDirectory = () => {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-primary">
                 <Video className="h-5 w-5" />
-                Virtual Sessions
+                {t('clients_directory.virtual_sessions')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">{virtualSessions}</p>
-              <p className="text-sm text-gray-500 mt-1">Upcoming virtual meetings</p>
+              <p className="text-sm text-gray-500 mt-1">{t('clients_directory.upcoming_virtual_meetings')}</p>
             </CardContent>
           </Card>
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow-sm">
-          <h2 className="text-xl font-semibold mb-4">Client List</h2>
+          <h2 className="text-xl font-semibold mb-4">{t('clients_directory.client_list')}</h2>
           {filteredClients.length > 0 ? (
             viewMode === "grid" ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -283,12 +287,12 @@ const ClientDirectory = () => {
                         {client.cases && client.cases.length > 0 && (
                           <div className="mt-3">
                             <Badge variant="outline" className="text-blue-600 bg-blue-50">
-                              {client.cases.length} {client.cases.length === 1 ? 'case' : 'cases'}
+                              {t('clients_directory.case_count', { count: client.cases.length })}
                             </Badge>
                             
                             {client.upcoming_sessions && client.upcoming_sessions.length > 0 && (
                               <Badge variant="outline" className="ml-2 text-green-600 bg-green-50">
-                                {client.upcoming_sessions.length} upcoming {client.upcoming_sessions.length === 1 ? 'session' : 'sessions'}
+                                {t('clients_directory.upcoming_session_count', { count: client.upcoming_sessions.length })}
                               </Badge>
                             )}
                           </div>
@@ -302,14 +306,14 @@ const ClientDirectory = () => {
                         className="flex-1"
                         onClick={() => navigate(`/messages/${client.id}`)}
                       >
-                        Message
+                        {t('clients_directory.message')}
                       </Button>
                       <Button 
                         size="sm"
                         className="flex-1"
                         onClick={() => navigate(`/clients/${client.id}`)}
                       >
-                        View Profile
+                        {t('clients_directory.view_profile')}
                       </Button>
                     </div>
                   </div>
@@ -326,7 +330,7 @@ const ClientDirectory = () => {
                             <h3 className="font-medium text-lg mr-2">{client.full_name}</h3>
                             {client.cases && client.cases.length > 0 && (
                               <Badge variant="outline" className="text-blue-600 bg-blue-50">
-                                {client.cases.length} {client.cases.length === 1 ? 'case' : 'cases'}
+                                {t('clients_directory.case_count', { count: client.cases.length })}
                               </Badge>
                             )}
                           </div>
@@ -347,11 +351,11 @@ const ClientDirectory = () => {
                             <div className="mt-2">
                               <p className="text-sm text-gray-700 flex items-center">
                                 <Calendar className="h-4 w-4 mr-1 text-gray-400" />
-                                Next session: {new Date(client.upcoming_sessions[0].scheduled_date).toLocaleDateString()} 
+                                {t('clients_directory.next_session')}: {new Date(client.upcoming_sessions[0].scheduled_date).toLocaleDateString()} 
                                 {client.upcoming_sessions[0].is_virtual && (
                                   <Badge variant="outline" className="ml-2 text-green-600 bg-green-50 flex items-center">
                                     <Video className="h-3 w-3 mr-1" />
-                                    Virtual
+                                    {t('clients_directory.virtual')}
                                   </Badge>
                                 )}
                               </p>
@@ -365,14 +369,14 @@ const ClientDirectory = () => {
                               size="sm"
                               onClick={() => setSelectedClient(client)}
                             >
-                              Details
+                              {t('clients_directory.details')}
                             </Button>
                           </DialogTrigger>
                           <Button 
                             size="sm"
                             onClick={() => navigate(`/clients/${client.id}`)}
                           >
-                            Profile
+                            {t('clients_directory.profile')}
                           </Button>
                         </div>
                       </div>
@@ -387,16 +391,16 @@ const ClientDirectory = () => {
                           
                           <Tabs defaultValue="overview">
                             <TabsList className="mb-4">
-                              <TabsTrigger value="overview">Overview</TabsTrigger>
-                              <TabsTrigger value="cases">Cases</TabsTrigger>
-                              <TabsTrigger value="sessions">Court Sessions</TabsTrigger>
+                              <TabsTrigger value="overview">{t('clients_directory.overview')}</TabsTrigger>
+                              <TabsTrigger value="cases">{t('clients_directory.cases')}</TabsTrigger>
+                              <TabsTrigger value="sessions">{t('clients_directory.court_sessions')}</TabsTrigger>
                             </TabsList>
                             
                             <TabsContent value="overview" className="space-y-4">
                               <div className="grid md:grid-cols-2 gap-4">
                                 <div className="space-y-3">
                                   <div>
-                                    <h4 className="text-sm font-medium text-gray-500">Contact Information</h4>
+                                    <h4 className="text-sm font-medium text-gray-500">{t('clients_directory.contact_information')}</h4>
                                     <div className="mt-1 space-y-2">
                                       <p className="flex items-center">
                                         <Mail className="h-4 w-4 mr-2 text-gray-400" />
@@ -418,14 +422,14 @@ const ClientDirectory = () => {
                                   </div>
                                   
                                   <div>
-                                    <h4 className="text-sm font-medium text-gray-500">Quick Actions</h4>
+                                    <h4 className="text-sm font-medium text-gray-500">{t('clients_directory.quick_actions')}</h4>
                                     <div className="mt-1 flex gap-2">
                                       <Button variant="outline" size="sm" onClick={() => navigate(`/messages/${selectedClient.id}`)}>
-                                        Send Message
+                                        {t('clients_directory.send_message')}
                                       </Button>
                                       {['court', 'admin'].includes(role) && (
                                         <Button variant="outline" size="sm" onClick={() => navigate(`/calendar/new?client=${selectedClient.id}`)}>
-                                          Schedule Meeting
+                                          {t('clients_directory.schedule_meeting')}
                                         </Button>
                                       )}
                                     </div>
@@ -433,12 +437,12 @@ const ClientDirectory = () => {
                                 </div>
                                 
                                 <div>
-                                  <h4 className="text-sm font-medium text-gray-500">Upcoming Sessions</h4>
+                                  <h4 className="text-sm font-medium text-gray-500">{t('clients_directory.upcoming_sessions')}</h4>
                                   {selectedClient.upcoming_sessions && selectedClient.upcoming_sessions.length > 0 ? (
                                     <div className="mt-1 space-y-2">
                                       {selectedClient.upcoming_sessions.map((session, index) => (
                                         <div key={index} className="border rounded p-3">
-                                          <p className="font-medium">{session.case?.title || "Court Session"}</p>
+                                          <p className="font-medium">{session.case?.title || t('clients_directory.court_session')}</p>
                                           <div className="flex items-center justify-between mt-1">
                                             <p className="text-sm text-gray-600">
                                               {new Date(session.scheduled_date).toLocaleString()}
@@ -447,11 +451,11 @@ const ClientDirectory = () => {
                                               {session.is_virtual ? (
                                                 <Badge className="bg-green-100 text-green-800 hover:bg-green-200 flex items-center gap-1">
                                                   <Video className="h-3 w-3" />
-                                                  Virtual
+                                                  {t('clients_directory.virtual')}
                                                 </Badge>
                                               ) : (
                                                 <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200">
-                                                  In-Person
+                                                  {t('clients_directory.in_person')}
                                                 </Badge>
                                               )}
                                             </div>
@@ -463,7 +467,7 @@ const ClientDirectory = () => {
                                                 variant="outline"
                                                 onClick={() => navigate(`/meeting/${session.id}`)}
                                               >
-                                                Join Meeting
+                                                {t('clients_directory.join_meeting')}
                                               </Button>
                                             )}
                                           </div>
@@ -471,7 +475,7 @@ const ClientDirectory = () => {
                                       ))}
                                     </div>
                                   ) : (
-                                    <p className="text-sm text-gray-500 mt-2">No upcoming sessions</p>
+                                    <p className="text-sm text-gray-500 mt-2">{t('clients_directory.no_upcoming_sessions')}</p>
                                   )}
                                 </div>
                               </div>
@@ -497,7 +501,7 @@ const ClientDirectory = () => {
                                         </Badge>
                                       </div>
                                       <p className="text-sm text-gray-600 mt-1">
-                                        Created: {new Date(caseItem.created_at).toLocaleDateString()}
+                                        {t('clients_directory.created')}: {new Date(caseItem.created_at).toLocaleDateString()}
                                       </p>
                                       <div className="mt-3">
                                         <Button 
@@ -505,7 +509,7 @@ const ClientDirectory = () => {
                                           size="sm"
                                           onClick={() => navigate(`/cases/${caseItem.id}`)}
                                         >
-                                          View Case
+                                          {t('clients_directory.view_case')}
                                         </Button>
                                       </div>
                                     </div>
@@ -514,13 +518,13 @@ const ClientDirectory = () => {
                               ) : (
                                 <div className="text-center py-8">
                                   <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                                  <p>No cases found for this client</p>
+                                  <p>{t('clients_directory.no_cases_for_client')}</p>
                                   <Button 
                                     variant="outline" 
                                     className="mt-4"
                                     onClick={() => navigate(`/cases/new?client=${selectedClient.id}`)}
                                   >
-                                    Create New Case
+                                    {t('clients_directory.create_new_case')}
                                   </Button>
                                 </div>
                               )}
@@ -531,7 +535,7 @@ const ClientDirectory = () => {
                                 <div className="space-y-3">
                                   {selectedClient.upcoming_sessions.map((session, index) => (
                                     <div key={index} className="border rounded p-4">
-                                      <h3 className="font-medium">{session.case?.title || "Court Session"}</h3>
+                                      <h3 className="font-medium">{session.case?.title || t('clients_directory.court_session')}</h3>
                                       <div className="flex items-center mt-2">
                                         <Calendar className="h-4 w-4 mr-2 text-gray-400" />
                                         <p className="text-sm">
@@ -553,11 +557,11 @@ const ClientDirectory = () => {
                                         {session.is_virtual ? (
                                           <Badge className="bg-green-100 text-green-800 flex items-center gap-1">
                                             <Video className="h-3 w-3" />
-                                            Virtual
+                                            {t('clients_directory.virtual')}
                                           </Badge>
                                         ) : (
                                           <Badge className="bg-blue-100 text-blue-800">
-                                            In-Person
+                                            {t('clients_directory.in_person')}
                                           </Badge>
                                         )}
                                       </div>
@@ -569,7 +573,7 @@ const ClientDirectory = () => {
                                             onClick={() => navigate(`/meeting/${session.id}`)}
                                           >
                                             <Video className="h-4 w-4 mr-2" />
-                                            Join Virtual Meeting
+                                            {t('clients_directory.join_virtual_meeting')}
                                           </Button>
                                         </div>
                                       )}
@@ -579,14 +583,14 @@ const ClientDirectory = () => {
                               ) : (
                                 <div className="text-center py-8">
                                   <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                                  <p>No upcoming court sessions</p>
+                                  <p>{t('clients_directory.no_upcoming_court_sessions')}</p>
                                   {['court', 'admin'].includes(role) && (
                                     <Button 
                                       variant="outline" 
                                       className="mt-4"
                                       onClick={() => navigate(`/calendar/new?client=${selectedClient.id}`)}
                                     >
-                                      Schedule New Session
+                                      {t('clients_directory.schedule_new_session')}
                                     </Button>
                                   )}
                                 </div>
@@ -603,14 +607,14 @@ const ClientDirectory = () => {
           ) : (
             <div className="text-center py-12 border rounded-lg bg-gray-50">
               <Users className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <p className="text-gray-500">No clients found matching "{searchTerm}"</p>
+              <p className="text-gray-500">{t('clients_directory.no_clients_matching', { searchTerm })}</p>
               {searchTerm && (
                 <Button 
                   variant="outline" 
                   className="mt-4"
                   onClick={() => setSearchTerm("")}
                 >
-                  Clear Search
+                  {t('clients_directory.clear_search')}
                 </Button>
               )}
             </div>

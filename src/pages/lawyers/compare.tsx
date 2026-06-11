@@ -21,6 +21,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import Navbar from "@/components/Navbar";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
  // import { supabase } from "@/integrations/supabase/client";
 import { Profile } from "@/types/database.types";
 
@@ -37,6 +38,7 @@ type Lawyer = {
 const CompareLawyers: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [lawyers, setLawyers] = useState<Lawyer[]>([]);
   const [selectedLawyerIds, setSelectedLawyerIds] = useState<string[]>([]);
   const [selectedLawyers, setSelectedLawyers] = useState<Lawyer[]>([]);
@@ -47,23 +49,24 @@ const CompareLawyers: React.FC = () => {
     const fetchLawyers = async () => {
       try {
         setLoading(true);
-  const response = await fetch("/api/lawyers", { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-        if (!response.ok) throw new Error("Failed to fetch lawyers");
+        const token = localStorage.getItem('token');
+  const response = await fetch("/api/lawyers", { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+        if (!response.ok) throw new Error(t('compare_lawyers.failed_fetch'));
         const lawyersData = await response.json();
         setLawyers(lawyersData as Profile[]);
       } catch (error) {
         console.error('Error fetching lawyers:', error);
         toast({
           variant: "destructive",
-          title: "Error",
-          description: "Failed to load lawyers",
+          title: t('compare_lawyers.error'),
+          description: t('compare_lawyers.failed_load'),
         });
       } finally {
         setLoading(false);
       }
     };
     fetchLawyers();
-  }, [toast]);
+  }, [toast, t]);
 
   // Fetch details for selected lawyers
   useEffect(() => {
@@ -71,9 +74,10 @@ const CompareLawyers: React.FC = () => {
       setSelectedLawyers([]);
       return;
     }
+    const token = localStorage.getItem('token');
     Promise.all(
       selectedLawyerIds.map((id) =>
-        fetch(`/api/lawyers/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }).then((res) => res.json())
+        fetch(`/api/lawyers/${id}`, { headers: token ? { Authorization: `Bearer ${token}` } : undefined }).then((res) => res.json())
       )
     )
       .then((lawyerDetails) => setSelectedLawyers(lawyerDetails))
@@ -111,7 +115,7 @@ const CompareLawyers: React.FC = () => {
   ) => {
     const renderValue = (value: string | number | null | undefined, type: 'text' | 'number' | 'boolean') => {
       if (value === null || value === undefined) {
-        return <span className="text-muted-foreground italic">Not specified</span>;
+        return <span className="text-muted-foreground italic">{t('compare_lawyers.not_specified')}</span>;
       }
 
       switch (type) {
@@ -141,42 +145,42 @@ const CompareLawyers: React.FC = () => {
   <main id="main-dashboard-section" className="container mx-auto px-4 py-8">
         <div className="flex flex-col items-center mb-8">
           <ScaleIcon className="h-12 w-12 text-primary mb-2" />
-          <h1 className="text-3xl font-bold text-center">Compare Lawyers</h1>
+          <h1 className="text-3xl font-bold text-center">{t('compare_lawyers.title')}</h1>
           <p className="text-muted-foreground text-center mt-2">
-            Select two lawyers to compare their qualifications, experience, and rates
+            {t('compare_lawyers.subtitle')}
           </p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Select Lawyers to Compare</CardTitle>
+            <CardTitle>{t('compare_lawyers.select_title')}</CardTitle>
             <CardDescription>
-              Choose two lawyers from the dropdown menus below
+              {t('compare_lawyers.choose_two')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Left lawyer selection */}
               <div>
-                <label className="block text-sm font-medium mb-2">First Lawyer</label>
+                <label className="block text-sm font-medium mb-2">{t('compare_lawyers.first_lawyer')}</label>
                 <Select
                   value={selectedLawyers.left || ''}
                   onValueChange={(value) => handleSelect(value)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a lawyer" />
+                    <SelectValue placeholder={t('compare_lawyers.select_a_lawyer')} />
                   </SelectTrigger>
                   <SelectContent>
                     {loading ? (
-                      <SelectItem value="loading" disabled>Loading lawyers...</SelectItem>
+                      <SelectItem value="loading" disabled>{t('compare_lawyers.loading_lawyers')}</SelectItem>
                     ) : lawyers.length > 0 ? (
                       lawyers.map((lawyer) => (
                         <SelectItem key={`left-${lawyer.id}`} value={lawyer.id}>
-                          {lawyer.full_name || 'Unnamed Lawyer'}
+                          {lawyer.full_name || t('compare_lawyers.unnamed_lawyer')}
                         </SelectItem>
                       ))
                     ) : (
-                      <SelectItem value="no-lawyers" disabled>No lawyers available</SelectItem>
+                      <SelectItem value="no-lawyers" disabled>{t('compare_lawyers.no_lawyers_available')}</SelectItem>
                     )}
                   </SelectContent>
                 </Select>
@@ -184,25 +188,25 @@ const CompareLawyers: React.FC = () => {
               
               {/* Right lawyer selection */}
               <div>
-                <label className="block text-sm font-medium mb-2">Second Lawyer</label>
+                <label className="block text-sm font-medium mb-2">{t('compare_lawyers.second_lawyer')}</label>
                 <Select
                   value={selectedLawyers.right || ''}
                   onValueChange={(value) => handleSelect(value)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a lawyer" />
+                    <SelectValue placeholder={t('compare_lawyers.select_a_lawyer')} />
                   </SelectTrigger>
                   <SelectContent>
                     {loading ? (
-                      <SelectItem value="loading" disabled>Loading lawyers...</SelectItem>
+                      <SelectItem value="loading" disabled>{t('compare_lawyers.loading_lawyers')}</SelectItem>
                     ) : lawyers.length > 0 ? (
                       lawyers.map((lawyer) => (
                         <SelectItem key={`right-${lawyer.id}`} value={lawyer.id}>
-                          {lawyer.full_name || 'Unnamed Lawyer'}
+                          {lawyer.full_name || t('compare_lawyers.unnamed_lawyer')}
                         </SelectItem>
                       ))
                     ) : (
-                      <SelectItem value="no-lawyers" disabled>No lawyers available</SelectItem>
+                      <SelectItem value="no-lawyers" disabled>{t('compare_lawyers.no_lawyers_available')}</SelectItem>
                     )}
                   </SelectContent>
                 </Select>
@@ -215,9 +219,9 @@ const CompareLawyers: React.FC = () => {
         {(leftLawyer || rightLawyer) && (
           <Card className="mt-8">
             <CardHeader>
-              <CardTitle>Comparison Results</CardTitle>
+              <CardTitle>{t('compare_lawyers.results_title')}</CardTitle>
               <CardDescription>
-                Side-by-side comparison of selected lawyers
+                {t('compare_lawyers.results_desc')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -239,11 +243,11 @@ const CompareLawyers: React.FC = () => {
                         size="sm"
                         onClick={() => handleViewProfile(leftLawyer.id)}
                       >
-                        View Profile
+                        {t('compare_lawyers.view_profile')}
                       </Button>
                     </div>
                   ) : (
-                    <div className="text-muted-foreground">No lawyer selected</div>
+                    <div className="text-muted-foreground">{t('compare_lawyers.no_lawyer_selected')}</div>
                   )}
                 </div>
                 <div className="text-center">
@@ -261,38 +265,38 @@ const CompareLawyers: React.FC = () => {
                         size="sm"
                         onClick={() => handleViewProfile(rightLawyer.id)}
                       >
-                        View Profile
+                        {t('compare_lawyers.view_profile')}
                       </Button>
                     </div>
                   ) : (
-                    <div className="text-muted-foreground">No lawyer selected</div>
+                    <div className="text-muted-foreground">{t('compare_lawyers.no_lawyer_selected')}</div>
                   )}
                 </div>
               </div>
 
               {/* Comparison rows */}
               <div className="border rounded-md">
-                <div className="bg-muted px-4 py-2 font-semibold">Professional Information</div>
-                {renderComparisonRow("Specialization", leftLawyer?.specialization, rightLawyer?.specialization)}
-                {renderComparisonRow("Years of Experience", leftLawyer?.years_of_experience, rightLawyer?.years_of_experience, 'number')}
-                {renderComparisonRow("Bar Number", leftLawyer?.bar_number, rightLawyer?.bar_number)}
-                {renderComparisonRow("Hourly Rate", 
+                <div className="bg-muted px-4 py-2 font-semibold">{t('compare_lawyers.professional_info')}</div>
+                {renderComparisonRow(t('compare_lawyers.specialization'), leftLawyer?.specialization, rightLawyer?.specialization)}
+                {renderComparisonRow(t('compare_lawyers.years_experience'), leftLawyer?.years_of_experience, rightLawyer?.years_of_experience, 'number')}
+                {renderComparisonRow(t('compare_lawyers.bar_number'), leftLawyer?.bar_number, rightLawyer?.bar_number)}
+                {renderComparisonRow(t('compare_lawyers.hourly_rate'), 
                   leftLawyer?.hourly_rate ? `$${leftLawyer.hourly_rate}` : null, 
                   rightLawyer?.hourly_rate ? `$${rightLawyer.hourly_rate}` : null
                 )}
                 
                 <Separator />
                 
-                <div className="bg-muted px-4 py-2 font-semibold">Contact Information</div>
-                {renderComparisonRow("Email", leftLawyer?.email, rightLawyer?.email)}
-                {renderComparisonRow("Phone", leftLawyer?.contact_number, rightLawyer?.contact_number)}
-                {renderComparisonRow("Office Address", leftLawyer?.office_address, rightLawyer?.office_address)}
+                <div className="bg-muted px-4 py-2 font-semibold">{t('compare_lawyers.contact_information')}</div>
+                {renderComparisonRow(t('compare_lawyers.email'), leftLawyer?.email, rightLawyer?.email)}
+                {renderComparisonRow(t('compare_lawyers.phone'), leftLawyer?.contact_number, rightLawyer?.contact_number)}
+                {renderComparisonRow(t('compare_lawyers.office_address'), leftLawyer?.office_address, rightLawyer?.office_address)}
                 
                 <Separator />
                 
-                <div className="bg-muted px-4 py-2 font-semibold">Languages</div>
+                <div className="bg-muted px-4 py-2 font-semibold">{t('compare_lawyers.languages')}</div>
                 <div className="grid grid-cols-3 py-3">
-                    <div className="font-medium">Spoken Languages</div>
+                    <div className="font-medium">{t('compare_lawyers.spoken_languages')}</div>
                     <div className="text-center">
                       {leftLawyer?.languages && leftLawyer.languages.length > 0 ? (
                         <div className="flex flex-wrap justify-center gap-1">
@@ -303,7 +307,7 @@ const CompareLawyers: React.FC = () => {
                           ))}
                         </div>
                       ) : (
-                        <span className="text-muted-foreground italic">Not specified</span>
+                        <span className="text-muted-foreground italic">{t('compare_lawyers.not_specified')}</span>
                       )}
                     </div>
                     <div className="text-center">
@@ -316,16 +320,16 @@ const CompareLawyers: React.FC = () => {
                           ))}
                         </div>
                       ) : (
-                        <span className="text-muted-foreground italic">Not specified</span>
+                        <span className="text-muted-foreground italic">{t('compare_lawyers.not_specified')}</span>
                       )}
                     </div>
                 </div>
                 
                 <Separator />
                 
-                <div className="bg-muted px-4 py-2 font-semibold">Education</div>
+                <div className="bg-muted px-4 py-2 font-semibold">{t('compare_lawyers.education')}</div>
                 <div className="grid grid-cols-3 py-3">
-                  <div className="font-medium">Education Background</div>
+                  <div className="font-medium">{t('compare_lawyers.education_background')}</div>
                   <div className="text-center">
                     {leftLawyer?.education && leftLawyer.education.length > 0 ? (
                       <div className="space-y-1">
@@ -334,7 +338,7 @@ const CompareLawyers: React.FC = () => {
                         ))}
                       </div>
                     ) : (
-                      <span className="text-muted-foreground italic">Not specified</span>
+                      <span className="text-muted-foreground italic">{t('compare_lawyers.not_specified')}</span>
                     )}
                   </div>
                   <div className="text-center">
@@ -345,7 +349,7 @@ const CompareLawyers: React.FC = () => {
                         ))}
                       </div>
                     ) : (
-                      <span className="text-muted-foreground italic">Not specified</span>
+                      <span className="text-muted-foreground italic">{t('compare_lawyers.not_specified')}</span>
                     )}
                   </div>
                 </div>
@@ -358,7 +362,7 @@ const CompareLawyers: React.FC = () => {
                     onClick={() => handleViewProfile(leftLawyer.id)}
                     className="flex items-center gap-2"
                   >
-                    Select {leftLawyer.full_name?.split(' ')[0]}
+                    {t('compare_lawyers.select_name', { name: leftLawyer.full_name?.split(' ')[0] })}
                   </Button>
                 )}
                 {rightLawyer && (
@@ -366,7 +370,7 @@ const CompareLawyers: React.FC = () => {
                     onClick={() => handleViewProfile(rightLawyer.id)}
                     className="flex items-center gap-2"
                   >
-                    Select {rightLawyer.full_name?.split(' ')[0]}
+                    {t('compare_lawyers.select_name', { name: rightLawyer.full_name?.split(' ')[0] })}
                   </Button>
                 )}
               </div>

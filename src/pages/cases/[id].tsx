@@ -18,72 +18,79 @@ const CaseDetails = () => {
   const [documents, setDocuments] = useState<CaseDocument[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [documentError, setDocumentError] = useState<string | null>(null);
   const [caseHistory, setCaseHistory] = useState<any[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
 
-  useEffect(() => {
-    const fetchCaseData = async () => {
-      if (!caseData?.id) return;
-      try {
-        const token = localStorage.getItem('token');
-        const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
-
-        // Fetch court sessions
-        setLoadingSessions(true);
-        try {
-          const sessionsRes = await fetch(`/api/courtsessions?case_id=${caseData.id}`, { headers: { ...authHeader } });
-          if (!sessionsRes.ok) {
-            const msg = await sessionsRes.text();
-            toast({ title: 'Failed to fetch court sessions', description: msg || `${sessionsRes.status} ${sessionsRes.statusText}`, variant: 'destructive' });
-            throw new Error('Failed to fetch court sessions');
-          }
-          const sessionsData = await sessionsRes.json();
-          const list = Array.isArray(sessionsData) ? sessionsData : (sessionsData?.sessions || sessionsData || []);
-          setSessions(list);
-        } finally {
-          setLoadingSessions(false);
-        }
-
-        // Fetch case documents
-        setLoadingDocuments(true);
-        try {
-          const documentsRes = await fetch(`/api/documents/${caseData.id}`, { headers: { ...authHeader } });
-          if (!documentsRes.ok) {
-            const msg = await documentsRes.text();
-            toast({ title: 'Failed to fetch case documents', description: msg || `${documentsRes.status} ${documentsRes.statusText}`, variant: 'destructive' });
-            throw new Error('Failed to fetch case documents');
-          }
-          const documentsData = await documentsRes.json();
-          const docs = Array.isArray(documentsData) ? documentsData : (documentsData?.documents || documentsData || []);
-          setDocuments(docs);
-        } finally {
-          setLoadingDocuments(false);
-        }
-
-        // fetch history if present (non-blocking)
-        try {
-          const historyRes = await fetch(`/api/cases/${caseData.id}`, { headers: { ...authHeader } });
-          if (historyRes.ok) {
-            const full = await historyRes.json();
-            setCaseHistory(full.history || []);
-          }
-        } catch (e) {
-          // ignore history errors
-        }
-      } catch (error: any) {
-        console.error('Error fetching case data:', error);
-        toast({
-          title: 'Error loading case data',
-          description: error.message || error.toString(),
-          variant: 'destructive',
-        });
+  const fetchSessions = async () => {
+    if (!caseData?.id) return;
+    setLoadingSessions(true);
+    setSessionError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+      const sessionsRes = await fetch(`/api/courtsessions?case_id=${caseData.id}`, { headers: { ...authHeader } });
+      if (!sessionsRes.ok) {
+        const msg = await sessionsRes.text();
+        throw new Error(msg || `${sessionsRes.status} ${sessionsRes.statusText}`);
       }
-    };
+      const sessionsData = await sessionsRes.json();
+      const list = Array.isArray(sessionsData) ? sessionsData : (sessionsData?.sessions || sessionsData || []);
+      setSessions(list);
+    } catch (error: any) {
+      const errorMsg = error.message || 'Failed to load court sessions';
+      setSessionError(errorMsg);
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
 
-    fetchCaseData();
-  }, [caseData, toast]);
+  const fetchDocuments = async () => {
+    if (!caseData?.id) return;
+    setLoadingDocuments(true);
+    setDocumentError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+      const documentsRes = await fetch(`/api/documents/${caseData.id}`, { headers: { ...authHeader } });
+      if (!documentsRes.ok) {
+        const msg = await documentsRes.text();
+        throw new Error(msg || `${documentsRes.status} ${documentsRes.statusText}`);
+      }
+      const documentsData = await documentsRes.json();
+      const docs = Array.isArray(documentsData) ? documentsData : (documentsData?.documents || documentsData || []);
+      setDocuments(docs);
+    } catch (error: any) {
+      const errorMsg = error.message || 'Failed to load case documents';
+      setDocumentError(errorMsg);
+    } finally {
+      setLoadingDocuments(false);
+    }
+  };
+
+  const fetchHistory = async () => {
+    if (!caseData?.id) return;
+    try {
+      const token = localStorage.getItem('token');
+      const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+      const historyRes = await fetch(`/api/cases/${caseData.id}`, { headers: { ...authHeader } });
+      if (historyRes.ok) {
+        const full = await historyRes.json();
+        setCaseHistory(full.history || []);
+      }
+    } catch (e) {
+      // ignore history errors
+    }
+  };
+
+  useEffect(() => {
+    if (!caseData?.id) return;
+    // Load all data in parallel
+    Promise.all([fetchSessions(), fetchDocuments(), fetchHistory()]);
+  }, [caseData?.id]);
 
   if (loading) {
     return (
@@ -224,6 +231,20 @@ const CaseDetails = () => {
                 <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                 <p className="text-muted-foreground">Loading sessions...</p>
               </div>
+            ) : sessionError ? (
+              <div className="text-center py-12">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+                  <p className="text-red-700 font-medium mb-2">Failed to load court sessions</p>
+                  <p className="text-sm text-red-600 mb-4">{sessionError}</p>
+                  <Button 
+                    variant="outline" 
+                    onClick={fetchSessions}
+                    className="border-red-200 hover:bg-red-50"
+                  >
+                    Retry
+                  </Button>
+                </div>
+              </div>
             ) : sessions.length > 0 ? (
               <div className="divide-y">
                 {sessions.map((session) => (
@@ -268,6 +289,20 @@ const CaseDetails = () => {
               <div className="text-center py-12">
                 <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                 <p className="text-muted-foreground">Loading documents...</p>
+              </div>
+            ) : documentError ? (
+              <div className="text-center py-12">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+                  <p className="text-red-700 font-medium mb-2">Failed to load case documents</p>
+                  <p className="text-sm text-red-600 mb-4">{documentError}</p>
+                  <Button 
+                    variant="outline" 
+                    onClick={fetchDocuments}
+                    className="border-red-200 hover:bg-red-50"
+                  >
+                    Retry
+                  </Button>
+                </div>
               </div>
             ) : documents.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

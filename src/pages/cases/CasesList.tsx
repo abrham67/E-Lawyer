@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { CasesAPI } from "@/lib/api";
+import { useTranslation } from 'react-i18next';
 
 const CasesList = () => {
   const [cases, setCases] = useState<any[]>([]);
@@ -8,6 +9,7 @@ const CasesList = () => {
   const [error, setError] = useState<string | null>(null);
   const [newCase, setNewCase] = useState({ title: "", description: "", clientId: "" });
   const token = localStorage.getItem("token") || undefined;
+  const { t } = useTranslation();
 
   // Fetch cases on mount
   useEffect(() => {
@@ -16,7 +18,7 @@ const CasesList = () => {
       .then(setCases)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [token]);
 
   // Create new case
   const handleCreate = async (e: React.FormEvent) => {
@@ -50,13 +52,13 @@ const CasesList = () => {
 
   return (
     <div className="p-8">
-      <h2 className="text-xl font-bold mb-4">Cases</h2>
+      <h2 className="text-xl font-bold mb-4">{t('cases_list.title')}</h2>
       {error && <div className="text-red-500 mb-2">{error}</div>}
-      {loading && <div>Loading...</div>}
+      {loading && <div>{t('cases_list.loading')}</div>}
       <form onSubmit={handleCreate} className="mb-4 flex gap-2">
         <input
           type="text"
-          placeholder="Title"
+          placeholder={t('cases_list.title_input')}
           value={newCase.title}
           onChange={e => setNewCase({ ...newCase, title: e.target.value })}
           required
@@ -64,7 +66,7 @@ const CasesList = () => {
         />
         <input
           type="text"
-          placeholder="Description"
+          placeholder={t('cases_list.description_input')}
           value={newCase.description}
           onChange={e => setNewCase({ ...newCase, description: e.target.value })}
           required
@@ -72,13 +74,13 @@ const CasesList = () => {
         />
         <input
           type="text"
-          placeholder="Client ID"
+          placeholder={t('cases_list.client_id_input')}
           value={newCase.clientId}
           onChange={e => setNewCase({ ...newCase, clientId: e.target.value })}
           required
           className="border px-2 py-1"
         />
-        <button type="submit" className="bg-blue-500 text-white px-3 py-1 rounded">Add Case</button>
+        <button type="submit" className="bg-blue-500 text-white px-3 py-1 rounded">{t('cases_list.add_case')}</button>
       </form>
       <ul>
         {cases.map(c => (
@@ -86,7 +88,7 @@ const CasesList = () => {
             <span>
               <strong>{c.title}</strong> - {c.description}
             </span>
-            <button onClick={() => handleDelete(c.id || c._id)} className="text-red-500">Delete</button>
+            <button onClick={() => handleDelete(c.id || c._id)} className="text-red-500">{t('cases_list.delete')}</button>
           </li>
         ))}
       </ul>

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface CourtSession {
   _id: string;
@@ -21,6 +22,7 @@ const CourtSessionsList: React.FC = () => {
   const [search, setSearch] = useState('');
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   useEffect(() => {
     const fetchSessions = async () => {
@@ -31,7 +33,7 @@ const CourtSessionsList: React.FC = () => {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined
         });
         if (!res.ok) {
-          let errorMsg = 'Failed to fetch court sessions';
+          let errorMsg = t('court_sessions.failed_fetch');
           try {
             const errText = await res.text();
             errorMsg += `: ${errText}`;
@@ -43,15 +45,15 @@ const CourtSessionsList: React.FC = () => {
       } catch (err) {
         toast({
           variant: 'destructive',
-          title: 'Error',
-          description: err instanceof Error ? err.message : 'Failed to load court sessions',
+          title: t('court_sessions.error'),
+          description: err instanceof Error ? err.message : t('court_sessions.failed_load'),
         });
       } finally {
         setLoading(false);
       }
     };
     fetchSessions();
-  }, [toast]);
+  }, [toast, t]);
 
   const filtered = sessions.filter(s =>
     s.location?.toLowerCase().includes(search.toLowerCase()) ||
@@ -62,12 +64,12 @@ const CourtSessionsList: React.FC = () => {
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-          <h1 className="text-3xl font-bold">Court Sessions</h1>
-          <Button onClick={() => navigate('/courtsessions/new')}>New Court Session</Button>
+          <h1 className="text-3xl font-bold">{t('court_sessions.title')}</h1>
+          <Button onClick={() => navigate('/courtsessions/new')}>{t('court_sessions.new')}</Button>
         </div>
         <div className="mb-6">
           <Input
-            placeholder="Search by location or ID..."
+            placeholder={t('court_sessions.search_placeholder')}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -81,34 +83,34 @@ const CourtSessionsList: React.FC = () => {
             {filtered.map(session => (
               <Card key={session._id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
-                  <CardTitle>Court Session</CardTitle>
+                  <CardTitle>{t('court_sessions.card_title')}</CardTitle>
                   <CardDescription>
-                    {session.location || 'No location'}
+                    {session.location || t('court_sessions.no_location')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    <div><b>Case ID:</b> {session.caseId}</div>
-                    <div><b>Judge ID:</b> {session.judgeId}</div>
-                    <div><b>Date:</b> {new Date(session.scheduleDate).toLocaleString()}</div>
-                    {session.startTime && <div><b>Start:</b> {session.startTime}</div>}
-                    {session.endTime && <div><b>End:</b> {session.endTime}</div>}
+                    <div><b>{t('court_sessions.case_id')}:</b> {session.caseId}</div>
+                    <div><b>{t('court_sessions.judge_id')}:</b> {session.judgeId}</div>
+                    <div><b>{t('court_sessions.date')}:</b> {new Date(session.scheduleDate).toLocaleString()}</div>
+                    {session.startTime && <div><b>{t('court_sessions.start')}:</b> {session.startTime}</div>}
+                    {session.endTime && <div><b>{t('court_sessions.end')}:</b> {session.endTime}</div>}
                   </div>
                   <div className="flex gap-2 mt-4">
-                    <Button variant="outline" size="sm" onClick={() => navigate(`/courtsessions/${session._id}`)}>View</Button>
-                    <Button variant="outline" size="sm" onClick={() => navigate(`/courtsessions/${session._id}/edit`)}>Edit</Button>
+                    <Button variant="outline" size="sm" onClick={() => navigate(`/courtsessions/${session._id}`)}>{t('court_sessions.view')}</Button>
+                    <Button variant="outline" size="sm" onClick={() => navigate(`/courtsessions/${session._id}/edit`)}>{t('court_sessions.edit')}</Button>
                     <Button variant="destructive" size="sm" onClick={async () => {
-                      if (window.confirm('Delete this court session?')) {
+                      if (window.confirm(t('court_sessions.delete_confirm'))) {
                         try {
                           const res = await fetch(`/api/courtsessions/${session._id}`, { method: 'DELETE' });
-                          if (!res.ok) throw new Error('Failed to delete');
+                          if (!res.ok) throw new Error(t('court_sessions.failed_delete'));
                           setSessions(sessions.filter(s => s._id !== session._id));
-                          toast({ title: 'Court session deleted' });
+                          toast({ title: t('court_sessions.deleted') });
                         } catch (err: any) {
-                          toast({ variant: 'destructive', title: 'Error', description: err.message });
+                          toast({ variant: 'destructive', title: t('court_sessions.error'), description: err.message });
                         }
                       }
-                    }}>Delete</Button>
+                    }}>{t('court_sessions.delete')}</Button>
                   </div>
                 </CardContent>
               </Card>
@@ -116,9 +118,9 @@ const CourtSessionsList: React.FC = () => {
           </div>
         ) : (
           <div className="text-center py-12">
-            <h3 className="mt-4 text-lg font-medium">No court sessions found</h3>
+            <h3 className="mt-4 text-lg font-medium">{t('court_sessions.no_sessions_found')}</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              {search ? 'Try adjusting your search' : 'No sessions scheduled yet.'}
+              {search ? t('court_sessions.adjust_search') : t('court_sessions.no_sessions_scheduled')}
             </p>
           </div>
         )}

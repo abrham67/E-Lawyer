@@ -71,13 +71,23 @@ function toValidIdStrings(values) {
   return Array.from(new Set(valid.map(String)));
 }
 
+function isAdminUser(req) {
+  return String(req?.user?.role || '').toLowerCase() === 'admin';
+}
+
 // Get all cases (scoped by role)
 router.get('/', authenticateToken, authorizeRoles('lawyer', 'client', 'court'), async (req, res) => {
   try {
     let results = [];
     const role = String(req.user.role || '').toLowerCase();
 
-    if (role === 'lawyer') {
+    if (role === 'admin') {
+      results = await Case.find({})
+        .populate('clientId')
+        .populate('client_id')
+        .populate('lawyerId')
+        .populate('lawyer_id');
+    } else if (role === 'lawyer') {
       // lawyers should only see cases assigned to them (handle both id and populated object cases)
       results = await Case.find({
         $or: [
@@ -117,10 +127,14 @@ router.get('/', authenticateToken, authorizeRoles('lawyer', 'client', 'court'), 
 // Get unique active clients for the authenticated lawyer
 router.get('/active-clients', authenticateToken, authorizeRoles('lawyer'), async (req, res) => {
   try {
-    const assigned = await Case.find({
-      $or: [{ lawyer_id: req.user.id }, { lawyerId: req.user.id }],
-      status: 'active'
-    }).select('client_id clientId').lean();
+    const assigned = await Case.find(
+      isAdminUser(req)
+        ? { status: 'active' }
+        : {
+          $or: [{ lawyer_id: req.user.id }, { lawyerId: req.user.id }],
+          status: 'active'
+        }
+    ).select('client_id clientId').lean();
     const ids = toValidIdStrings(
       assigned
         .map(c => c.client_id || c.clientId)
@@ -141,7 +155,11 @@ router.get('/me/lawyers', authenticateToken, authorizeRoles('client'), async (re
   try {
     const clientId = String(req.user.id);
     // Find all cases owned by this client
-    const myCases = await Case.find({ $or: [{ client_id: clientId }, { clientId: clientId }] })
+    const myCases = await Case.find(
+      isAdminUser(req)
+        ? {}
+        : { $or: [{ client_id: clientId }, { clientId: clientId }] }
+    )
       .select('_id lawyer_id lawyerId')
       .lean();
     if (!myCases || myCases.length === 0) return res.json([]);
@@ -183,21 +201,20 @@ router.post('/', authenticateToken, authorizeRoles('lawyer'), [
   body('title').isLength({ min: 3 }).trim(),
   body('description').isLength({ min: 10 }),
   body('clientId').notEmpty(),
-  body('courtId').notEmpty(),
+  body('courtId').optional({ checkFalsy: true }),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
   try {
-    // Validate the courtId belongs to a court user
+    // Validate the courtId only when provided
     const providedCourtId = req.body.courtId || req.body.court_id;
-    if (!providedCourtId) {
-      return res.status(400).json({ error: 'courtId is required' });
-    }
-    const courtUser = await User.findById(providedCourtId).lean();
-    if (!courtUser || String(courtUser.role || '').toLowerCase() !== 'court') {
-      return res.status(400).json({ error: 'Invalid courtId: not a court user' });
+    if (providedCourtId) {
+      const courtUser = await User.findById(providedCourtId).lean();
+      if (!courtUser || String(courtUser.role || '').toLowerCase() !== 'court') {
+        return res.status(400).json({ error: 'Invalid courtId: not a court user' });
+      }
     }
     const newCase = new Case({
       ...req.body,
@@ -205,8 +222,8 @@ router.post('/', authenticateToken, authorizeRoles('lawyer'), [
       lawyerId: req.user.id,
       lawyer_id: req.user.id,
       client_id: req.body.clientId || req.body.client_id,
-      courtId: req.body.courtId || req.body.court_id,
-      court_id: req.body.courtId || req.body.court_id,
+      courtId: providedCourtId || undefined,
+      court_id: providedCourtId || undefined,
     });
     // Add initial history entry
     newCase.history = newCase.history || [];
@@ -288,6 +305,13 @@ router.get('/connection-status', authenticateToken, authorizeRoles('client', 'la
     if (!lawyerId) return res.status(400).json({ error: 'lawyer_id query param required' });
     const role = String(req.user.role || '').toLowerCase();
 
+    if (role === 'admin') {
+      const found = await Case.findOne({
+        $or: [{ lawyer_id: lawyerId }, { lawyerId: lawyerId }]
+      });
+      return res.json({ status: found ? (found.status || 'pending') : 'none' });
+    }
+
     if (role === 'client') {
       // client asking: return their connection status with the given lawyer
       const found = await Case.findOne({
@@ -331,7 +355,7 @@ router.get('/:id', authenticateToken, authorizeRoles('lawyer', 'client', 'court'
     const isLawyer = lawyerId && String(lawyerId) === String(req.user.id);
     const isClient = clientId && String(clientId) === String(req.user.id);
     const isCourt = courtId && String(courtId) === String(req.user.id);
-    if (!isLawyer && !isClient && !isCourt) {
+    if (!isLawyer && !isClient && !isCourt && !isAdminUser(req)) {
       return res.status(403).json({ error: 'Forbidden: not assigned to this case' });
     }
     res.json(mapCaseToClient(foundCase));
@@ -364,7 +388,7 @@ router.patch('/:id/status', authenticateToken, authorizeRoles('lawyer'), async (
   if (!assignedLawyerId) {
       return res.status(403).json({ error: 'Forbidden: case has no assigned lawyer' });
     }
-  if (assignedLawyerId !== req.user.id) {
+  if (assignedLawyerId !== req.user.id && !isAdminUser(req)) {
       return res.status(403).json({ error: 'Forbidden: not assigned to this case' });
     }
   // Update status and record history
@@ -418,7 +442,7 @@ router.delete('/:id/disconnect', authenticateToken, authorizeRoles('client'), as
     if (!foundCase) return res.status(404).json({ error: 'Case not found' });
     // Only the client who created the case can disconnect
     const clientId = foundCase.client_id || foundCase.clientId;
-    if (!clientId || clientId.toString() !== req.user.id) {
+    if ((!clientId || clientId.toString() !== req.user.id) && !isAdminUser(req)) {
       return res.status(403).json({ error: 'Forbidden: you do not own this connection' });
     }
     await Case.findByIdAndDelete(caseId);
@@ -451,7 +475,7 @@ router.get('/:id/involved-lawyers', authenticateToken, authorizeRoles('court', '
     const isLawyer = lawyerId && String(lawyerId) === String(req.user.id);
     const isClient = clientId && String(clientId) === String(req.user.id);
     const isCourt = courtId && String(courtId) === String(req.user.id);
-    if (!isLawyer && !isClient && !isCourt) {
+    if (!isLawyer && !isClient && !isCourt && !isAdminUser(req)) {
       return res.status(403).json({ error: 'Forbidden: not assigned to this case' });
     }
 
@@ -489,7 +513,7 @@ router.get('/:id/involved-clients', authenticateToken, authorizeRoles('court', '
     const courtId = idToString(foundCase.court_id) || idToString(foundCase.courtId);
     const isLawyer = lawyerId && String(lawyerId) === String(req.user.id);
     const isCourt = courtId && String(courtId) === String(req.user.id);
-    if (!isLawyer && !isCourt) {
+    if (!isLawyer && !isCourt && !isAdminUser(req)) {
       return res.status(403).json({ error: 'Forbidden: not assigned to this case' });
     }
 
@@ -534,7 +558,7 @@ async function handleCaseDelete(req, res) {
       const ts = lidRaw.toString && lidRaw.toString !== Object.prototype.toString ? lidRaw.toString() : '';
       return ts && ts !== '[object Object]' ? ts : '';
     })();
-    if (!assignedLawyerId || assignedLawyerId !== req.user.id) {
+    if ((!assignedLawyerId || assignedLawyerId !== req.user.id) && !isAdminUser(req)) {
       return res.status(403).json({ error: 'Forbidden: not assigned to this case' });
     }
     await Case.findByIdAndDelete(caseId);
@@ -561,10 +585,10 @@ async function handleCaseDelete(req, res) {
 }
 
 // Primary DELETE route
-router.delete('/:id', authenticateToken, authorizeRoles('lawyer'), handleCaseDelete);
+router.delete('/:id', authenticateToken, authorizeRoles('lawyer', 'admin'), handleCaseDelete);
 
 // Fallback POST route for environments where DELETE might be blocked by proxy/firewall
-router.post('/:id/delete', authenticateToken, authorizeRoles('lawyer'), handleCaseDelete);
+router.post('/:id/delete', authenticateToken, authorizeRoles('lawyer', 'admin'), handleCaseDelete);
 
 module.exports = router;
  

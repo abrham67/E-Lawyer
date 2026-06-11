@@ -8,6 +8,7 @@ import { Loader2, Mail, Phone, MapPin, FileText, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Profile } from '@/types/database.types';
+import { useTranslation } from 'react-i18next';
 
 const ClientProfile = () => {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +19,7 @@ const ClientProfile = () => {
   const [cases, setCases] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   useEffect(() => {
     const fetchClientData = async () => {
@@ -26,8 +28,8 @@ const ClientProfile = () => {
         if (!id) {
           toast({
             variant: "destructive",
-            title: "Error",
-            description: "Client ID is missing",
+            title: t('client_profile.error'),
+            description: t('client_profile.client_id_missing'),
           });
           navigate('/clients');
           return;
@@ -35,7 +37,7 @@ const ClientProfile = () => {
         
         // TODO: Replace with backend API calls
         const clientRes = await fetch(`/api/clients/${id}`);
-        if (!clientRes.ok) throw new Error('Client not found');
+        if (!clientRes.ok) throw new Error(t('client_profile.client_not_found'));
         const clientData = await clientRes.json();
         setClient(clientData as Profile);
         
@@ -48,7 +50,7 @@ const ClientProfile = () => {
       } catch (error) {
         toast({
           variant: "destructive",
-          title: "Error",
+          title: t('client_profile.error'),
           description: error.message,
         });
         navigate('/clients');
@@ -58,13 +60,13 @@ const ClientProfile = () => {
     };
     
     fetchClientData();
-  }, [id, navigate, toast]);
+  }, [id, navigate, toast, t]);
   
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Loading client profile...</p>
+        <p className="mt-4 text-muted-foreground">{t('client_profile.loading_client_profile')}</p>
       </div>
     );
   }
@@ -75,8 +77,8 @@ const ClientProfile = () => {
         <Navbar />
         <div className="container mx-auto px-4 py-8">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-destructive">Client Not Found</h1>
-            <p className="mt-2 text-muted-foreground">The client profile you're looking for doesn't exist or you don't have permission to view it.</p>
+            <h1 className="text-2xl font-bold text-destructive">{t('client_profile.client_not_found')}</h1>
+            <p className="mt-2 text-muted-foreground">{t('client_profile.client_not_found_desc')}</p>
           </div>
         </div>
       </>
@@ -92,7 +94,7 @@ const ClientProfile = () => {
           <Card className="lg:col-span-1">
             <CardHeader className="pb-2">
               <CardTitle className="text-xl font-bold">{client.full_name}</CardTitle>
-              <CardDescription>Client Profile</CardDescription>
+              <CardDescription>{t('client_profile.client_profile')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -102,7 +104,7 @@ const ClientProfile = () => {
                   </div>
                   <div className="ml-4">
                     <h3 className="font-semibold">{client.full_name}</h3>
-                    <p className="text-sm text-muted-foreground">Client</p>
+                    <p className="text-sm text-muted-foreground">{t('client_profile.client')}</p>
                   </div>
                 </div>
                 
@@ -131,7 +133,7 @@ const ClientProfile = () => {
                 
                 <div className="pt-4">
                   <Button variant="outline" className="w-full" onClick={() => navigate(`/cases/new?client=${client.id}`)}>
-                    Create New Case
+                    {t('client_profile.create_new_case')}
                   </Button>
                 </div>
               </div>
@@ -142,22 +144,22 @@ const ClientProfile = () => {
           <div className="lg:col-span-2">
             <Tabs defaultValue="cases">
               <TabsList className="mb-4">
-                <TabsTrigger value="cases">Cases</TabsTrigger>
-                <TabsTrigger value="sessions">Upcoming Sessions</TabsTrigger>
+                <TabsTrigger value="cases">{t('client_profile.cases')}</TabsTrigger>
+                <TabsTrigger value="sessions">{t('client_profile.upcoming_sessions')}</TabsTrigger>
               </TabsList>
               
               <TabsContent value="cases">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Client Cases</CardTitle>
+                    <CardTitle className="text-lg">{t('client_profile.client_cases')}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     {cases.length === 0 ? (
                       <div className="text-center py-8">
                         <FileText className="h-12 w-12 mx-auto text-muted-foreground/50" />
-                        <p className="mt-2 text-muted-foreground">No cases found for this client.</p>
+                        <p className="mt-2 text-muted-foreground">{t('client_profile.no_cases')}</p>
                         <Button className="mt-4" onClick={() => navigate(`/cases/new?client=${client.id}`)}>
-                          Create New Case
+                          {t('client_profile.create_new_case')}
                         </Button>
                       </div>
                     ) : (
@@ -181,7 +183,7 @@ const ClientProfile = () => {
                                 </div>
                               </div>
                               <Button variant="outline" size="sm" onClick={() => navigate(`/cases/${caseItem.id}`)}>
-                                View Details
+                                {t('client_profile.view_details')}
                               </Button>
                             </div>
                           </div>
@@ -195,16 +197,16 @@ const ClientProfile = () => {
               <TabsContent value="sessions">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Upcoming Court Sessions</CardTitle>
+                    <CardTitle className="text-lg">{t('client_profile.upcoming_court_sessions')}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     {sessions.length === 0 ? (
                       <div className="text-center py-8">
                         <Calendar className="h-12 w-12 mx-auto text-muted-foreground/50" />
-                        <p className="mt-2 text-muted-foreground">No upcoming court sessions scheduled.</p>
+                        <p className="mt-2 text-muted-foreground">{t('client_profile.no_upcoming_sessions')}</p>
                         {['court', 'admin'].includes(String(authUser?.role || '').toLowerCase()) && (
                           <Button className="mt-4" onClick={() => navigate('/calendar/new')}>
-                            Schedule Session
+                            {t('client_profile.schedule_session')}
                           </Button>
                         )}
                       </div>
@@ -228,14 +230,14 @@ const ClientProfile = () => {
                                   </span>
                                   {session.is_virtual && (
                                     <span className="text-xs ml-2 px-2 py-1 rounded-full bg-purple-100 text-purple-800">
-                                      VIRTUAL
+                                      {t('client_profile.virtual')}
                                     </span>
                                   )}
                                 </div>
                               </div>
                               {session.is_virtual && session.status === 'scheduled' && (
                                 <Button variant="default" size="sm" onClick={() => navigate(`/meeting/${session.id}`)}>
-                                  Join Meeting
+                                  {t('client_profile.join_meeting')}
                                 </Button>
                               )}
                             </div>

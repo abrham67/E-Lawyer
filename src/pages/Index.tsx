@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useApiClient } from "@/hooks/useApiClient";
 
 import type { Profile, Case, CourtSession } from "@/types/database.types";
 import { CalendarDays, Scale, Users, Activity, FileText, Briefcase } from "lucide-react";
@@ -20,6 +21,7 @@ interface CaseWithDetails extends Omit<Case, 'lawyer_id'> {
 const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { authedFetch } = useApiClient();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [lawyers, setLawyers] = useState<Profile[]>([]);
   const [connectedLawyers, setConnectedLawyers] = useState<Profile[]>([]);
@@ -32,25 +34,9 @@ const Index = () => {
   const [upcomingSessions, setUpcomingSessions] = useState<CourtSession[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchUserProfile();
-  }, []);
-
-  useEffect(() => {
-    if (profile?.role === "client") {
-      fetchLawyers();
-      fetchConnectedLawyers();
-      fetchClientCases();
-    } else if (profile?.role === "lawyer") {
-      fetchLawyerCases();
-    } else if (profile?.role === "court") {
-      fetchCourtSessions();
-    }
-  }, [profile]);
-
   // Fetch user profile using backend API (no Supabase)
   // Public: No authentication required
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
@@ -67,7 +53,7 @@ const Index = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
   
   // Redirect to /auth if not authenticated and not loading
   useEffect(() => {
@@ -76,18 +62,15 @@ const Index = () => {
     }
   }, [loading, profile, navigate]);
 
-  if (!profile && !loading) {
-    return null;
-  }
-
-  const fetchClientCases = async () => {
+  const fetchClientCases = useCallback(async () => {
     if (!profile) return;
     try {
-  const response = await fetch(`/api/cases?client_id=${profile.id}` , { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-  if (!response.ok) throw new Error('Failed to fetch cases');
-  const raw = await response.json();
-  const data = raw.cases || raw || [];
-  const transformedCases = (data || []).map((caseData: any) => {
+      const tokenLocal = localStorage.getItem('token');
+      const response = await fetch(`/api/cases?client_id=${profile.id}`, { headers: tokenLocal ? { Authorization: `Bearer ${tokenLocal}` } : undefined });
+      if (!response.ok) throw new Error('Failed to fetch cases');
+      const raw = await response.json();
+      const data = raw.cases || raw || [];
+      const transformedCases = (data || []).map((caseData: any) => {
         let status: 'pending' | 'active' | 'closed' = 'pending';
         if (caseData.status === 'active' || caseData.status === 'closed') {
           status = caseData.status;
@@ -110,16 +93,17 @@ const Index = () => {
         variant: 'destructive',
       });
     }
-  };
+  }, [profile, toast]);
 
-  const fetchLawyerCases = async () => {
+  const fetchLawyerCases = useCallback(async () => {
     if (!profile) return;
     try {
-  const response = await fetch(`/api/cases?lawyer_id=${profile.id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-  if (!response.ok) throw new Error('Failed to fetch cases');
-  const raw = await response.json();
-  const data = raw.cases || raw || [];
-  const transformedCases = (data || []).map((caseData: any) => {
+      const tokenLocal = localStorage.getItem('token');
+      const response = await fetch(`/api/cases?lawyer_id=${profile.id}`, { headers: tokenLocal ? { Authorization: `Bearer ${tokenLocal}` } : undefined });
+      if (!response.ok) throw new Error('Failed to fetch cases');
+      const raw = await response.json();
+      const data = raw.cases || raw || [];
+      const transformedCases = (data || []).map((caseData: any) => {
         let status: 'pending' | 'active' | 'closed' = 'pending';
         if (caseData.status === 'active' || caseData.status === 'closed') {
           status = caseData.status;
@@ -142,14 +126,12 @@ const Index = () => {
         variant: 'destructive',
       });
     }
-  };
+  }, [profile, toast]);
 
-  const fetchCourtSessions = async () => {
+  const fetchCourtSessions = useCallback(async () => {
     if (!profile) return;
     try {
-  const response = await fetch(`/api/courtsessions?court_id=${profile.id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-      if (!response.ok) throw new Error('Failed to fetch court sessions');
-      const data = await response.json();
+      const data = await authedFetch(`/api/courtsessions?court_id=${profile.id}`);
       setUpcomingSessions(data || []);
     } catch (error) {
       console.error('Error fetching court sessions:', error);
@@ -159,9 +141,9 @@ const Index = () => {
         variant: 'destructive',
       });
     }
-  };
+  }, [profile, toast, authedFetch]);
 
-  const fetchLawyers = async () => {
+  const fetchLawyers = useCallback(async () => {
     try {
       const response = await fetch('/api/profiles?role=lawyer');
       if (!response.ok) throw new Error('Failed to fetch lawyers');
@@ -175,9 +157,9 @@ const Index = () => {
         variant: 'destructive',
       });
     }
-  };
+  }, [toast]);
 
-  const fetchConnectedLawyers = async () => {
+  const fetchConnectedLawyers = useCallback(async () => {
     if (!profile) return;
     try {
       const response = await fetch(`/api/cases?client_id=${profile.id}`);
@@ -197,14 +179,39 @@ const Index = () => {
         variant: 'destructive',
       });
     }
-  };
+  }, [profile, toast]);
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, [fetchUserProfile]);
+
+  useEffect(() => {
+    if (profile?.role === "client" || profile?.role === "admin") {
+      fetchLawyers();
+      fetchConnectedLawyers();
+      fetchClientCases();
+      if (profile?.role === "admin") {
+        fetchLawyerCases();
+        fetchCourtSessions();
+      }
+    } else if (profile?.role === "lawyer") {
+      fetchLawyerCases();
+    } else if (profile?.role === "court") {
+      fetchCourtSessions();
+    }
+  }, [profile, fetchLawyers, fetchConnectedLawyers, fetchClientCases, fetchLawyerCases, fetchCourtSessions]);
+
+  if (!profile && !loading) {
+    return null;
+  }
 
   const connectWithLawyer = async (lawyerId: string) => {
     if (!profile) return;
     try {
+      const tokenLocal = localStorage.getItem('token');
       const response = await fetch('/api/cases/connect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { 'Content-Type': 'application/json', ...(tokenLocal ? { Authorization: `Bearer ${tokenLocal}` } : {}) },
         body: JSON.stringify({
           lawyer_id: lawyerId,
           title: 'New Case',
@@ -366,9 +373,10 @@ const Index = () => {
                               className="bg-green-50 text-green-700"
                               onClick={async () => {
                                 try {
+                                  const tokenLocal = localStorage.getItem('token');
                                   const res = await fetch(`/api/cases/${case_.id}/status`, {
                                     method: 'PATCH',
-                                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+                                    headers: { 'Content-Type': 'application/json', ...(tokenLocal ? { Authorization: `Bearer ${tokenLocal}` } : {}) },
                                     body: JSON.stringify({ status: 'active' })
                                   });
                                   if (!res.ok) throw new Error('Failed to approve case');
@@ -410,9 +418,10 @@ const Index = () => {
                                       onClick={async () => {
                                         try {
                                           if (!rejectingCaseId) return;
+                                          const tokenLocal = localStorage.getItem('token');
                                           const res = await fetch(`/api/cases/${rejectingCaseId}/status`, {
                                             method: 'PATCH',
-                                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+                                            headers: { 'Content-Type': 'application/json', ...(tokenLocal ? { Authorization: `Bearer ${tokenLocal}` } : {}) },
                                             body: JSON.stringify({ status: 'rejected', reason: rejectReason })
                                           });
                                           if (!res.ok) throw new Error('Failed to reject case');

@@ -3,13 +3,34 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 const User = require('../models/User');
-const SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
+const { getJwtSecret, verifyJwtToken } = require('../utils/jwtSecret');
+const SECRET = getJwtSecret();
+const { z, validateBody } = require('../middleware/validate');
+const AUTH_DEBUG = process.env.DEBUG_AUTH === '1';
+
+const registerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  full_name: z.string().optional().nullable(),
+  role: z.enum(['client', 'lawyer', 'court']),
+  bar_number: z.string().optional().nullable(),
+  specialization: z.string().optional().nullable(),
+  court_name: z.string().optional().nullable(),
+  jurisdiction: z.string().optional().nullable(),
+  court_type: z.string().optional().nullable(),
+  id_number: z.string().optional().nullable(),
+});
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
 
 // Registration endpoint
-router.post('/register', async (req, res) => {
+router.post('/register', validateBody(registerSchema), async (req, res) => {
   try {
   const { email, password, full_name, role, bar_number, specialization, court_name, jurisdiction, court_type, id_number } = req.body;
-    if (process.env.NODE_ENV !== 'production') {
+    if (AUTH_DEBUG) {
       console.log('REGISTER PAYLOAD:', { email, hasPassword: !!password, full_name, role, bar_number, specialization, court_name, jurisdiction, court_type, id_number });
     }
     if (!email || !password || !role) {
@@ -80,33 +101,46 @@ router.post('/register', async (req, res) => {
 });
 
 // Login endpoint
-router.post('/login', async (req, res) => {
+router.post('/login', validateBody(loginSchema), async (req, res) => {
   try {
     const { email, password } = req.body;
-  if (process.env.NODE_ENV !== 'production') console.log('LOGIN ATTEMPT:', { email });
+  if (AUTH_DEBUG) console.log('LOGIN ATTEMPT:', { email });
     if (!email || !password) {
-  if (process.env.NODE_ENV !== 'production') console.log('Missing email or password');
+  if (AUTH_DEBUG) console.log('Missing email or password');
       return res.status(400).json({ error: 'Missing email or password' });
     }
     const user = await User.findOne({ email });
     if (!user) {
-  if (process.env.NODE_ENV !== 'production') console.log('User not found:', email);
+  if (AUTH_DEBUG) console.log('User not found:', email);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     if (user.is_suspended) {
-      if (process.env.NODE_ENV !== 'production') console.log('Suspended account attempted login:', email);
+      if (AUTH_DEBUG) console.log('Suspended account attempted login:', email);
       return res.status(403).json({ error: 'Account suspended', suspension_reason: user.suspension_reason || null });
+    }
+    if (['lawyer', 'court'].includes(String(user.role || '').toLowerCase()) && !user.id_verified) {
+      return res.status(403).json({ error: 'Account pending admin verification' });
     }
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
-  if (process.env.NODE_ENV !== 'production') console.log('Invalid password for:', email);
+  if (AUTH_DEBUG) console.log('Invalid password for:', email);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     const userObj = user.toObject();
     delete userObj.password;
     const token = jwt.sign({ id: user._id, role: user.role }, SECRET, { expiresIn: '1d' });
-  if (process.env.NODE_ENV !== 'production') console.log('LOGIN SUCCESS:', { email, role: user.role });
-    res.json({ token, user: userObj });
+  if (AUTH_DEBUG) console.log('LOGIN SUCCESS:', { email, role: user.role });
+
+    // Set HTTP-only cookie (secure flag only in production)
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.cookie('authToken', token, {
+      httpOnly: true,
+      secure: isProduction, // Only send over HTTPS in production
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000 // 1 day in milliseconds
+    });
+
+    res.json({ message: 'Login successful', user: userObj });
   } catch (err) {
     console.error('LOGIN ERROR:', err);
     res.status(500).json({ error: err.message });
@@ -120,13 +154,12 @@ function authenticateToken(req, res, next) {
   if (!token) {
     return res.status(401).json({ error: 'No token provided' });
   }
-  jwt.verify(token, SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid token' });
-    }
-    req.user = user;
+  try {
+    req.user = verifyJwtToken(token);
     next();
-  });
+  } catch (err) {
+    return res.status(403).json({ error: 'Invalid token' });
+  }
 }
 
 // Protected route: get current user profile
@@ -141,11 +174,17 @@ router.get('/me', authenticateToken, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(String(id))) {
       return res.status(401).json({ error: 'Invalid user id in token' });
     }
-    const user = await User.findById(String(id)).select('-password');
-    if (!user) {
+    const userDoc = await User.findById(String(id)).select('-password').lean();
+    if (!userDoc) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json({ user });
+    const { _id, password, ...rest } = userDoc;
+    const normalized = { id: String(_id), ...rest };
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    res.set('Surrogate-Control', 'no-store');
+    res.json({ user: normalized });
   } catch (err) {
     // Gracefully downgrade common cast errors to 401
     if (err && (err.name === 'CastError' || /Cast to ObjectId failed/i.test(err.message || ''))) {
@@ -153,6 +192,16 @@ router.get('/me', authenticateToken, async (req, res) => {
     }
     res.status(500).json({ error: err.message });
   }
+});
+
+// Logout endpoint: clear auth cookie
+router.post('/logout', (req, res) => {
+  res.clearCookie('authToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  });
+  res.json({ message: 'Logged out successfully' });
 });
 
 module.exports = router;

@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { CourtSession } from '@/types/database.types';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -44,7 +43,7 @@ export const useParticipants = ({ session }: UseParticipantsProps) => {
   };
   
   // Function to send reminders to participants
-  const sendReminders = async () => {
+  const sendReminders = useCallback(async () => {
     try {
       // Get the current time
       const now = new Date();
@@ -101,17 +100,17 @@ export const useParticipants = ({ session }: UseParticipantsProps) => {
     } catch (error) {
       console.error('Error sending reminders:', error);
     }
-  };
+  }, [session, remindersSent, toast]);
   
   // Check for reminder times periodically
   useEffect(() => {
     const intervalId = setInterval(sendReminders, 60000); // Check every minute
     
     // Run once immediately to catch any immediate reminders
-    sendReminders();
+    sendReminders(); 
     
     return () => clearInterval(intervalId);
-  }, [session.scheduled_date, remindersSent]);
+  }, [sendReminders]);
   
   return {
     participants,

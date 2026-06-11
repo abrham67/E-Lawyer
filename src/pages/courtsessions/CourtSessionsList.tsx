@@ -1,4 +1,8 @@
+import { useTranslation } from 'react-i18next';
+
 const CourtSessionsList = () => {
-  return <div className="p-8">Court Sessions List Page</div>;
+  const { t } = useTranslation();
+
+  return <div className="p-8">{t('court_sessions.list_page')}</div>;
 };
 export default CourtSessionsList;

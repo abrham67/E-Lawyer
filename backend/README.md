@@ -18,6 +18,14 @@ This is the Node.js/Express backend scaffold for the E-Lawyer System.
    ```
 3. The API will be available at `http://localhost:5100/`
 
+## Testing
+- Unit/integration tests use Jest with an in-memory MongoDB. Ensure `JWT_SECRET` is set (tests default to `test-secret`).
+- Run all backend tests:
+  ```powershell
+  cd backend
+  npm test
+  ```
+
 ## Frontend Setup
 1. Open a new terminal and navigate to the main project folder:
    ```powershell

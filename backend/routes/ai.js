@@ -1,6 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const https = require('https');
+const { z, validateBody } = require('../middleware/validate');
+
+const askSchema = z.object({
+  query: z.string().min(3),
+  web: z.boolean().optional(),
+  includeWeb: z.boolean().optional(),
+  question: z.string().optional(),
+});
 
 // Helper: simple HTTPS POST with timeout and UA
 function httpsPostJson(url, payload, timeoutMs = 10000) {
@@ -180,15 +188,12 @@ async function fetchPageExcerpt(url, maxBytes = 200 * 1024, timeoutMs = 8000) {
 }
 
 // POST /api/ai/ask { query: string, web?: boolean }
-router.post('/ask', async (req, res) => {
+router.post('/ask', validateBody(askSchema), async (req, res) => {
   try {
     // Back-compat for older payload shape
     const body = req.body || {};
     const query = (body.query || body.question || '').toString();
     const web = !!(body.web ?? body.includeWeb ?? false);
-    if (!query || typeof query !== 'string' || query.trim().length < 3) {
-      return res.status(400).json({ error: 'query is required (min 3 chars)' });
-    }
 
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';

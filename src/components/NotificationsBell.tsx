@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Bell } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,7 +22,7 @@ const NotificationsBell: React.FC = () => {
   const [items, setItems] = useState<any[]>([]);
   const unread = useMemo(() => items.filter((n) => !n.read).length, [items]);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       if (!user?.id) return;
       const token = localStorage.getItem('token');
@@ -31,7 +31,7 @@ const NotificationsBell: React.FC = () => {
       const list = Array.isArray(data) ? data : (data?.notifications || []);
       setItems(list);
     } catch {}
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     fetchNotifications();
@@ -43,7 +43,7 @@ const NotificationsBell: React.FC = () => {
       setItems((prev) => [{ ...notif }, ...prev]);
     });
     return () => { try { socket.disconnect(); } catch {} };
-  }, [user?.id]);
+  }, [user?.id, fetchNotifications]);
 
   const markRead = async (id: string) => {
     try {

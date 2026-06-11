@@ -1,19 +1,27 @@
-
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-// Supabase removed; using backend API
 import { useToast } from "@/hooks/use-toast";
+import { useApiClient } from "@/hooks/useApiClient";
+import { useMeQuery } from "@/hooks/queries/useUsers";
 import Navbar from "@/components/Navbar";
-import { Profile as ProfileType } from "@/types/database.types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslation } from 'react-i18next';
 
 const Profile = () => {
-  const [profile, setProfile] = useState<any | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { authedFetch } = useApiClient();
+  const { t } = useTranslation();
+
+  const meQuery = useMeQuery(true);
+  const loadingProfile = meQuery.isLoading || meQuery.isFetching;
+  const queryError = meQuery.error as Error | null;
+
+  const [profile, setProfile] = useState<any | null>(null);
   const [uploading, setUploading] = useState(false);
   const [idPhotoUrl, setIdPhotoUrl] = useState<string | null>(null);
   const [idVerified, setIdVerified] = useState<boolean | null>(null);
@@ -22,76 +30,55 @@ const Profile = () => {
   const [draft, setDraft] = useState<any>({});
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        // Get token from localStorage (or wherever you store it)
-        const token = localStorage.getItem('token');
-        if (!token) {
-          navigate('/auth');
-          return;
-        }
-        const sessionRes = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!sessionRes.ok) {
-          navigate('/auth');
-          return;
-        }
-        const sessionData = await sessionRes.json();
-        const user = sessionData.user;
-        if (!user) {
-          navigate('/auth');
-          return;
-        }
-        // Normalize user from auth/me (avoid extra fetch or 404 when proxy/backend is down)
-        const normalized = {
-          id: (user as any).id || (user as any)._id || null,
-          ...user,
-        };
-        setProfile(normalized);
-        // Initialize KYC state
-        if ((normalized as any).id_photo_path) setIdPhotoUrl(`/${(normalized as any).id_photo_path}`.replace(/\\/g, '/'));
-        setIdVerified(!!(normalized as any).id_verified);
-        setDraft({
-          full_name: (normalized as any).full_name || "",
-          email: (normalized as any).email || "",
-          role: (normalized as any).role,
-          bar_number: (normalized as any).bar_number || "",
-          specialization: (normalized as any).specialization || "",
-          id_number: (normalized as any).id_number || "",
-          court_name: (normalized as any).court_name || "",
-          jurisdiction: (normalized as any).jurisdiction || "",
-          court_type: (normalized as any).court_type || "",
-        });
-      } catch (error: any) {
-        toast({
-          title: 'Error',
-          description: error.message || error.toString(),
-          variant: 'destructive',
-        });
-      }
+    if (!meQuery.data) return;
+
+    const normalized = {
+      id: (meQuery.data as any).id || (meQuery.data as any)._id || null,
+      ...meQuery.data,
     };
-    fetchProfile();
-  }, [navigate, toast]);
+
+    setProfile(normalized);
+    if ((normalized as any).id_photo_path) {
+      setIdPhotoUrl(`/${(normalized as any).id_photo_path}`.replace(/\\/g, "/"));
+    }
+    setIdVerified(!!(normalized as any).id_verified);
+
+    setDraft({
+      full_name: (normalized as any).full_name || "",
+      email: (normalized as any).email || "",
+      role: (normalized as any).role,
+      bar_number: (normalized as any).bar_number || "",
+      specialization: (normalized as any).specialization || "",
+      id_number: (normalized as any).id_number || "",
+      court_name: (normalized as any).court_name || "",
+      jurisdiction: (normalized as any).jurisdiction || "",
+      court_type: (normalized as any).court_type || "",
+    });
+  }, [meQuery.data]);
+
+  useEffect(() => {
+    if (!loadingProfile && !profile && !meQuery.data) {
+      navigate("/auth");
+    }
+  }, [loadingProfile, profile, meQuery.data, navigate]);
 
   const onUploadIdPhoto = async (file: File) => {
     try {
       setUploading(true);
-      const token = localStorage.getItem('token')!;
       const form = new FormData();
-      form.append('photo', file);
-      const res = await fetch('/api/profiles/me/id-photo', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+      form.append("photo", file);
+
+      const data = await authedFetch("/api/profiles/me/id-photo", {
+        method: "POST",
         body: form,
       });
-      if (!res.ok) throw new Error('Upload failed');
-      const data = await res.json();
-      const url = `/${data.id_photo_path}`.replace(/\\/g, '/');
+      if (!data) throw new Error("Upload failed");
+
+      const url = `/${data.id_photo_path}`.replace(/\\/g, "/");
       setIdPhotoUrl(url);
-      toast({ title: 'ID photo uploaded' });
+      toast({ title: t('profile_page.id_photo_uploaded') });
     } catch (e: any) {
-      toast({ title: 'Upload error', description: e.message || String(e), variant: 'destructive' });
+      toast({ title: t('profile_page.upload_error'), description: e.message || String(e), variant: "destructive" });
     } finally {
       setUploading(false);
     }
@@ -120,16 +107,11 @@ const Profile = () => {
   };
 
   const diff = (orig: any, d: any) => {
-    // Only allow non-sensitive fields to be updated by users
-    const allowed = [
-      "full_name",
-      "email",
-      "specialization",
-    ];
+    const allowed = ["full_name", "email", "specialization"];
     const out: any = {};
     allowed.forEach((k) => {
-      const o = (orig as any)?.[k];
-      const v = (d as any)?.[k];
+      const o = orig?.[k];
+      const v = d?.[k];
       if (typeof v !== "undefined" && v !== o) out[k] = v;
     });
     return out;
@@ -139,30 +121,23 @@ const Profile = () => {
     if (!profile) return;
     try {
       setSaving(true);
-      const token = localStorage.getItem("token");
       const payload = diff(profile, draft);
       if (Object.keys(payload).length === 0) {
         setIsEditing(false);
         return;
       }
-      const res = await fetch(`/api/users/${profile.id}`, {
+
+      const updated = await authedFetch(`/api/users/${profile.id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to update profile");
-      }
-      const updated = await res.json();
+
       setProfile({ ...(profile as any), ...updated });
       setIsEditing(false);
-      toast({ title: "Profile updated" });
+      toast({ title: t('profile_page.profile_updated') });
     } catch (e: any) {
-      toast({ title: "Update error", description: e.message || String(e), variant: "destructive" });
+      toast({ title: t('profile_page.update_error'), description: e.message || String(e), variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -171,131 +146,100 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-  <main id="main-dashboard-section" className="container mx-auto px-4 py-8">
+      <main id="main-dashboard-section" className="container mx-auto px-4 py-8">
         <Card className="max-w-2xl mx-auto">
           <CardHeader className="flex flex-row items-center gap-4">
             <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
               <User className="h-8 w-8 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-2xl">Profile</CardTitle>
-              <p className="text-muted-foreground">Manage your account settings</p>
+              <CardTitle className="text-2xl">{t('profile_page.title')}</CardTitle>
+              <p className="text-muted-foreground">{t('profile_page.subtitle')}</p>
             </div>
           </CardHeader>
+
           <CardContent className="space-y-4">
-            {profile && (
+            {loadingProfile ? (
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-1/3" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : queryError ? (
+              <div className="text-sm text-red-600">{queryError.message}</div>
+            ) : profile ? (
               <>
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-semibold">Account Details</h3>
-                    <p className="text-xs text-muted-foreground">View and update your information</p>
+                    <h3 className="font-semibold">{t('profile_page.account_details')}</h3>
+                    <p className="text-xs text-muted-foreground">{t('profile_page.view_update_info')}</p>
                   </div>
                   {!isEditing ? (
-                    <Button variant="secondary" onClick={onEdit}>Edit</Button>
+                    <Button variant="secondary" onClick={onEdit}>{t('profile_page.edit')}</Button>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <Button onClick={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
-                      <Button variant="outline" onClick={onCancel} disabled={saving}>Cancel</Button>
+                      <Button onClick={onSave} disabled={saving}>{saving ? t('profile_page.saving') : t('profile_page.save')}</Button>
+                      <Button variant="outline" onClick={onCancel} disabled={saving}>{t('profile_page.cancel')}</Button>
                     </div>
                   )}
                 </div>
 
-                {/* Full Name */}
                 {!isEditing ? (
-                  <div>
-                    <h3 className="font-semibold">Full Name</h3>
-                    <p>{profile.full_name}</p>
-                  </div>
+                  <>
+                    <div>
+                      <h3 className="font-semibold">{t('profile_page.full_name')}</h3>
+                      <p>{profile.full_name}</p>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{t('profile_page.email')}</h3>
+                      <p>{profile.email}</p>
+                    </div>
+                  </>
                 ) : (
-                  <div className="grid gap-1">
-                    <label className="text-sm font-medium">Full Name</label>
-                    <Input value={draft.full_name}
-                      onChange={(e) => setDraft({ ...draft, full_name: e.target.value })}
-                      placeholder="Enter full name" />
-                  </div>
+                  <>
+                    <div className="grid gap-1">
+                      <label className="text-sm font-medium">{t('profile_page.full_name')}</label>
+                      <Input value={draft.full_name} onChange={(e) => setDraft({ ...draft, full_name: e.target.value })} />
+                    </div>
+                    <div className="grid gap-1">
+                      <label className="text-sm font-medium">{t('profile_page.email')}</label>
+                      <Input type="email" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} />
+                    </div>
+                  </>
                 )}
 
-                {/* Email */}
-                {!isEditing ? (
-                  <div>
-                    <h3 className="font-semibold">Email</h3>
-                    <p>{profile.email}</p>
-                  </div>
-                ) : (
-                  <div className="grid gap-1">
-                    <label className="text-sm font-medium">Email</label>
-                    <Input type="email" value={draft.email}
-                      onChange={(e) => setDraft({ ...draft, email: e.target.value })}
-                      placeholder="name@example.com" />
-                  </div>
-                )}
-
-                {/* Role (read-only) */}
                 <div>
-                  <h3 className="font-semibold">Role</h3>
+                  <h3 className="font-semibold">{t('profile_page.role')}</h3>
                   <p className="capitalize">{profile.role}</p>
                 </div>
 
-                {/* Role-specific fields */}
-                {role === 'lawyer' && (
+                {role === "lawyer" && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <h3 className="font-semibold">Bar Number <span className="text-xs text-muted-foreground font-normal">(locked)</span></h3>
-                      <p>{(profile as any).bar_number || '—'}</p>
-                    </div>
-                    {!isEditing ? (
-                      <div>
-                        <h3 className="font-semibold">Specialization</h3>
-                        <p>{(profile as any).specialization || '—'}</p>
-                      </div>
-                    ) : (
-                      <div className="grid gap-1">
-                        <label className="text-sm font-medium">Specialization</label>
-                        <Input value={draft.specialization} onChange={(e) => setDraft({ ...draft, specialization: e.target.value })} placeholder="e.g., Family Law" />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {role === 'client' && (
-                  <div className="grid gap-1">
-                    <h3 className="font-semibold">ID Number <span className="text-xs text-muted-foreground font-normal">(locked)</span></h3>
-                    <p>{(profile as any).id_number || '—'}</p>
-                  </div>
-                )}
-
-                {role === 'court' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <h3 className="font-semibold">Court Name <span className="text-xs text-muted-foreground font-normal">(locked)</span></h3>
-                      <p>{(profile as any).court_name || '—'}</p>
+                      <h3 className="font-semibold">{t('profile_page.bar_number')}</h3>
+                      <p>{(profile as any).bar_number || "—"}</p>
                     </div>
                     <div>
-                      <h3 className="font-semibold">Jurisdiction <span className="text-xs text-muted-foreground font-normal">(locked)</span></h3>
-                      <p>{(profile as any).jurisdiction || '—'}</p>
-                    </div>
-                    <div>
-                      <h3 className="font-semibold">Court Type <span className="text-xs text-muted-foreground font-normal">(locked)</span></h3>
-                      <p>{(profile as any).court_type || '—'}</p>
+                      <h3 className="font-semibold">{t('profile_page.specialization')}</h3>
+                      <p>{(profile as any).specialization || "—"}</p>
                     </div>
                   </div>
                 )}
 
-                {/* KYC */}
                 <div className="pt-2 border-t">
-                  <h3 className="font-semibold mb-1">KYC</h3>
+                  <h3 className="font-semibold mb-1">{t('profile_page.kyc')}</h3>
                   <div className="flex items-center gap-3">
                     <div className="w-24 h-24 rounded bg-muted flex items-center justify-center overflow-hidden">
                       {idPhotoUrl ? (
                         <img src={idPhotoUrl} alt="ID" className="object-cover w-full h-full" />
                       ) : (
-                        <span className="text-xs text-muted-foreground">No ID photo</span>
+                        <span className="text-xs text-muted-foreground">{t('profile_page.no_id_photo')}</span>
                       )}
                     </div>
                     <div className="flex flex-col gap-2">
                       <label className="inline-flex items-center gap-2 px-3 py-2 rounded bg-primary text-white text-sm cursor-pointer disabled:opacity-60">
                         <Upload className="w-4 h-4" />
-                        <span>{uploading ? 'Uploading…' : 'Upload ID Photo'}</span>
+                        <span>{uploading ? t('profile_page.uploading') : t('profile_page.upload_id_photo')}</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -307,13 +251,13 @@ const Profile = () => {
                           }}
                         />
                       </label>
-                      <p className="text-xs text-muted-foreground">
-                        {idVerified ? 'ID verified' : 'ID not verified yet'}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{idVerified ? t('profile_page.id_verified') : t('profile_page.id_not_verified')}</p>
                     </div>
                   </div>
                 </div>
               </>
+            ) : (
+              <div className="text-sm text-muted-foreground">{t('profile_page.no_profile_data')}</div>
             )}
           </CardContent>
         </Card>

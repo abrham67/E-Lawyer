@@ -19,8 +19,9 @@ const Chat = ({ user, recipient }: ChatProps) => {
 
   useEffect(() => {
     // Connect to Socket.IO server
+    const socketToken = localStorage.getItem("token");
     socketRef.current = io(SOCKET_URL, {
-      auth: { token: localStorage.getItem("token") },
+      auth: socketToken ? { token: socketToken } : undefined,
       path: "/ws/socket.io",
       query: { userId: user?.id },
     });
@@ -46,8 +47,9 @@ const Chat = ({ user, recipient }: ChatProps) => {
     // Optionally fetch chat history from backend (only for valid ObjectId-like ids)
     const rid = recipient?.id || recipient?._id;
     if (rid && /^[a-fA-F0-9]{24}$/.test(String(rid))) {
+      const histToken = localStorage.getItem('token');
       fetch(`/api/communication/history?recipientId=${rid}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        headers: histToken ? { Authorization: `Bearer ${histToken}` } : undefined,
       })
         .then((res) => res.ok ? res.json() : { messages: [] })
         .then((data) => setMessages(data.messages || []))
@@ -77,14 +79,14 @@ const Chat = ({ user, recipient }: ChatProps) => {
           deliveredAcksRef.current.add(mid);
           fetch(`/api/communication/messages/${mid}/delivered`, {
             method: 'POST',
-            headers: { Authorization: `Bearer ${token}` },
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
           }).catch(() => {});
         }
         if (!m.read_at && !m.read && !readAcksRef.current.has(mid)) {
           readAcksRef.current.add(mid);
           fetch(`/api/communication/messages/${mid}/read`, {
             method: 'POST',
-            headers: { Authorization: `Bearer ${token}` },
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
           }).catch(() => {});
         }
       }
@@ -110,9 +112,10 @@ const Chat = ({ user, recipient }: ChatProps) => {
       form.append('recipientId', String(rid));
       if (input.trim()) form.append('text', input.trim());
       form.append('file', file);
+      const tokenForm = localStorage.getItem('token');
       fetch(`/api/communication/messages/with-attachment`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: tokenForm ? { Authorization: `Bearer ${tokenForm}` } : undefined,
         body: form,
       })
         .then(async res => {
@@ -130,11 +133,12 @@ const Chat = ({ user, recipient }: ChatProps) => {
         .finally(() => { setInput(''); setFile(null); });
     } else {
       const payload = { recipientId: rid, message: input };
+      const tokenMsg = localStorage.getItem('token');
       fetch(`/api/communication/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          ...(tokenMsg ? { Authorization: `Bearer ${tokenMsg}` } : {}),
         },
         body: JSON.stringify(payload),
       })
@@ -160,9 +164,10 @@ const Chat = ({ user, recipient }: ChatProps) => {
 
   const react = async (messageId: string, type: string) => {
     try {
+      const tokenReact = localStorage.getItem('token');
       await fetch(`/api/communication/messages/${messageId}/reactions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { 'Content-Type': 'application/json', ...(tokenReact ? { Authorization: `Bearer ${tokenReact}` } : {}) },
         body: JSON.stringify({ type }),
       });
     } catch {}

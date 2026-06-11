@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import { CasesAPI, CourtSessionsAPI } from "@/lib/api";
 import VideoConference from "@/components/VideoConference";
+import { useTranslation } from 'react-i18next';
 
 const JudgeDashboard = () => {
+  const { t } = useTranslation();
   const [sessions, setSessions] = useState<any[]>([]);
   const [cases, setCases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,21 +24,21 @@ const JudgeDashboard = () => {
         setLoading(false);
       })
       .catch(err => {
-        setError(err.message || "Failed to load dashboard data");
+          setError(err.message || t('judge_dashboard.failed_load'));
         setLoading(false);
       });
-  }, []);
+        }, [t]);
 
   if (loading) return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="container mx-auto px-4 py-6">Loading dashboard...</div>
+      <div className="container mx-auto px-4 py-6">{t('judge_dashboard.loading')}</div>
     </div>
   );
   if (error) return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="container mx-auto px-4 py-6 text-red-500">Error: {error}</div>
+      <div className="container mx-auto px-4 py-6 text-red-500">{t('judge_dashboard.error')}: {error}</div>
     </div>
   );
 
@@ -44,28 +46,28 @@ const JudgeDashboard = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main id="main-dashboard-section" className="container mx-auto px-4 py-6">
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-4 text-primary">Judge Dashboard</h1>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-4 text-primary">{t('judge_dashboard.title')}</h1>
         <div className="mb-6">
-        <h2 className="text-lg font-semibold">Court Sessions</h2>
+        <h2 className="text-lg font-semibold">{t('judge_dashboard.court_sessions')}</h2>
         <ul>
           {sessions.map(s => (
             <li key={s.id || s._id} className="mb-2 border-b pb-2 flex justify-between items-center">
               <div>
-                <strong>Date:</strong> {s.scheduleDate || 'N/A'}<br />
-                <strong>Case:</strong> {s.caseId}<br />
-                <strong>Location:</strong> {s.location || 'N/A'}<br />
-                <strong>Judge:</strong> {s.judgeId || 'N/A'}
+                <strong>{t('judge_dashboard.date')}:</strong> {s.scheduleDate || t('judge_dashboard.na')}<br />
+                <strong>{t('judge_dashboard.case')}:</strong> {s.caseId}<br />
+                <strong>{t('judge_dashboard.location')}:</strong> {s.location || t('judge_dashboard.na')}<br />
+                <strong>{t('judge_dashboard.judge')}:</strong> {s.judgeId || t('judge_dashboard.na')}
               </div>
               <button
                 className="ml-2 px-3 py-1 bg-green-600 text-white rounded"
                 onClick={() => setVideoRoom(s.id || s._id)}
               >
-                Join Video Session
+                {t('judge_dashboard.join_video_session')}
               </button>
             </li>
           ))}
         </ul>
-        {sessions.length === 0 && <div>No court sessions found.</div>}
+        {sessions.length === 0 && <div>{t('judge_dashboard.no_sessions')}</div>}
         {videoRoom && (
           <div className="mt-4 p-4 border rounded bg-gray-50">
             <VideoConference
@@ -75,24 +77,24 @@ const JudgeDashboard = () => {
               onStopRecording={() => {}}
               onUnshareDocument={() => {}}
             />
-            <button className="mt-2 px-3 py-1 bg-red-500 text-white rounded" onClick={() => setVideoRoom(null)}>
-              Leave Session
+              <button className="mt-2 px-3 py-1 bg-red-500 text-white rounded" onClick={() => setVideoRoom(null)}>
+              {t('judge_dashboard.leave_session')}
             </button>
           </div>
         )}
         </div>
         <div>
-        <h2 className="text-lg font-semibold">Cases</h2>
+        <h2 className="text-lg font-semibold">{t('judge_dashboard.cases')}</h2>
         <ul>
           {cases.map(c => (
             <li key={c.id || c._id} className="mb-2 border-b pb-2">
               <strong>{c.title}</strong> - {c.description}
-              <div>Case Number: {c.caseNumber || 'N/A'}</div>
-              <div>Status: {c.status || 'N/A'}</div>
+              <div>{t('judge_dashboard.case_number')}: {c.caseNumber || t('judge_dashboard.na')}</div>
+              <div>{t('judge_dashboard.status')}: {c.status || t('judge_dashboard.na')}</div>
             </li>
           ))}
         </ul>
-        {cases.length === 0 && <div>No cases found.</div>}
+        {cases.length === 0 && <div>{t('judge_dashboard.no_cases')}</div>}
         </div>
       </main>
     </div>

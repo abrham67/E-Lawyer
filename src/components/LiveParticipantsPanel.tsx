@@ -65,7 +65,7 @@ const LiveParticipantsPanel: React.FC<LiveParticipantsPanelProps> = ({ sessionId
       mounted = false;
       try { socket?.disconnect(); } catch {}
     };
-  }, [sessionId]);
+  }, [sessionId, token]);
 
   // Court-only actions using socket.io; keep it local to this component
   const handleMute = (socketId: string) => {

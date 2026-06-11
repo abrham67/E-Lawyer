@@ -2,6 +2,10 @@
 // Requires backend running on localhost:5100
 
 const BASE = process.env.BASE || 'http://127.0.0.1:5100';
+if (!process.env.JWT_SECRET) {
+  // Default secret for local smoke runs; backend requires it
+  process.env.JWT_SECRET = 'test-secret';
+}
 
 async function req(path, { method='GET', token, body } = {}) {
   const res = await fetch(BASE + path, {
